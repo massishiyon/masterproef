@@ -10,6 +10,7 @@ import pandas as pd
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import accuracy_score
+from sklearn.neighbors import KNeighborsClassifier
 
 np.set_printoptions(threshold=sys.maxsize)
 
@@ -85,9 +86,6 @@ df.reset_index(drop=True, inplace=True)
 df.loc[df.income == '>50K.', 'income'] = '>50K'
 df.loc[df.income == '<=50K.', 'income'] = '<=50K'
 
-df.sort_values(by='age', ascending=False, inplace=True)
-df.reset_index(drop=True, inplace=True)
-
 # Splitting the dataset into train and test sets
 percentage_train = 0.8
 indices_train = np.array(df.iloc[:int(round(df.shape[0] * percentage_train))].index.values.tolist())
@@ -100,16 +98,18 @@ print(df.loc[indices_train].loc[(df.sex == 'Male') & (df.income == '>50K')].shap
 print(df.loc[indices_train].loc[(df.sex == 'Female') & (df.income == '>50K')].shape[0] /
       df.loc[indices_train].loc[df.sex == 'Female'].shape[0])
 print((df.loc[indices_train].loc[(df.sex == 'Male') & (df.income == '>50K')].shape[0] /
-      df.loc[indices_train].loc[df.sex == 'Male'].shape[0]) - (df.loc[indices_train].loc[(df.sex == 'Female') & (df.income == '>50K')].shape[0] /
-      df.loc[indices_train].loc[df.sex == 'Female'].shape[0]))
+       df.loc[indices_train].loc[df.sex == 'Male'].shape[0]) - (
+              df.loc[indices_train].loc[(df.sex == 'Female') & (df.income == '>50K')].shape[0] /
+              df.loc[indices_train].loc[df.sex == 'Female'].shape[0]))
 
 print(df.loc[indices_test].loc[(df.sex == 'Male') & (df.income == '>50K')].shape[0] /
       df.loc[indices_test].loc[df.sex == 'Male'].shape[0])
 print(df.loc[indices_test].loc[(df.sex == 'Female') & (df.income == '>50K')].shape[0] /
       df.loc[indices_test].loc[df.sex == 'Female'].shape[0])
 print((df.loc[indices_test].loc[(df.sex == 'Male') & (df.income == '>50K')].shape[0] /
-      df.loc[indices_test].loc[df.sex == 'Male'].shape[0]) - (df.loc[indices_test].loc[(df.sex == 'Female') & (df.income == '>50K')].shape[0] /
-      df.loc[indices_test].loc[df.sex == 'Female'].shape[0]))
+       df.loc[indices_test].loc[df.sex == 'Male'].shape[0]) - (
+              df.loc[indices_test].loc[(df.sex == 'Female') & (df.income == '>50K')].shape[0] /
+              df.loc[indices_test].loc[df.sex == 'Female'].shape[0]))
 
 # Normalizing discrete/continuous variables
 df = df.assign(age=fnc.normalize(df.age, indices_train))
@@ -138,11 +138,9 @@ df.drop('race', axis=1, inplace=True)
 df = df.assign(sex=fnc.generate_dummies(df.sex, 'sex'))  # female = False, male = True
 df = pd.concat([df, fnc.generate_dummies(df['native-country'], 'native-country')], axis=1)
 df.drop('native-country', axis=1, inplace=True)
-df = df.assign(income=fnc.generate_dummies(df.income, 'income')) # <=50k = False, >50K = True
+df = df.assign(income=fnc.generate_dummies(df.income, 'income'))  # <=50k = False, >50K = True
 
-#%% First experiment:
-
-### Massaging the training set & calculating accuracy of unaltered model on test set
+#%% Remove discrimination in the training set through massaging
 # Assign train and test instances of features X and outcome Y
 x_train = df.loc[indices_train].drop('income', axis=1)
 y_train = df.loc[indices_train, 'income']
@@ -151,7 +149,7 @@ x_test = df.loc[indices_test].drop('income', axis=1)
 y_test = df.loc[indices_test, 'income']
 
 # Perform 5-fold cross validation grid search to find the optimal hyperparameters
-clf = DecisionTreeClassifier(random_state=17)
+clf = DecisionTreeClassifier(random_state=0)
 param_grid = {
     'max_depth': [None, 10, 20, 30, 40],
     'min_samples_split': [20, 50, 100, 150],
@@ -165,56 +163,192 @@ gridsearch.fit(x_train, y_train)
 # Results of grid search
 print(gridsearch.best_params_)
 print(gridsearch.best_score_)
-clf = gridsearch.best_estimator_
+d_clf = gridsearch.best_estimator_
 
 # Compute accuracy on test set
-accuracy = accuracy_score(y_test, clf.predict(x_test))
-print(accuracy)
+acc_d_ts = accuracy_score(y_test, d_clf.predict(x_test))
 
 # Predict probability scores on training set
-scores = clf.predict_proba(x_train)[:, 1]
+scores = d_clf.predict_proba(x_train)[:, 1]
 
 # create dataframes of candidates for promotion and demotion
-train_scores = pd.concat([df.loc[indices_train], pd.Series(scores, name='score')], axis=1)
+#train_scores = pd.concat([df.loc[indices_train, ['sex', 'income']], pd.Series(scores, name='score')], axis=1)
+train_scores = df.loc[indices_train, ['sex', 'income']]
+train_scores.loc[:, 'score'] = scores
 
-promotion_candidates = train_scores.loc[(train_scores.sex == False) & (train_scores.income == False)].sort_values(by='score', ascending=False)
-demotion_candidates = train_scores.loc[(train_scores.sex == True) & (train_scores.income == True)].sort_values(by='score')
+promotion_candidates = train_scores.loc[(train_scores.sex == False) & (train_scores.income == False)].sort_values(
+    by='score', ascending=False)
+demotion_candidates = train_scores.loc[(train_scores.sex == True) & (train_scores.income == True)].sort_values(
+    by='score')
 
 # Statistical parity discrimination of training set
 print((df.loc[indices_train].loc[(df.sex == True) & (df.income == True)].shape[0] /
-    df.loc[indices_train].loc[df.sex == True].shape[0]) - (df.loc[indices_train].loc[(df.sex == False) & (df.income == True)].shape[0] /
-       df.loc[indices_train].loc[df.sex == False].shape[0]))
+       df.loc[indices_train].loc[df.sex == True].shape[0]) - (
+              df.loc[indices_train].loc[(df.sex == False) & (df.income == True)].shape[0] /
+              df.loc[indices_train].loc[df.sex == False].shape[0]))
 
 # Statistical parity discrimination of test set
 print((df.loc[indices_test].loc[(df.sex == True) & (df.income == True)].shape[0] /
-    df.loc[indices_test].loc[df.sex == True].shape[0]) - (df.loc[indices_test].loc[(df.sex == False) & (df.income == True)].shape[0] /
-      df.loc[indices_test].loc[df.sex == False].shape[0]))
+       df.loc[indices_test].loc[df.sex == True].shape[0]) - (
+              df.loc[indices_test].loc[(df.sex == False) & (df.income == True)].shape[0] /
+              df.loc[indices_test].loc[df.sex == False].shape[0]))
 
-# As long as the statistical parity discrimination of training set is bigger than that of the test set, keep iterating
+# As long as the statistical parity discrimination of training set is bigger than 0, keep iterating
 print('Starting promotions/demotions...')
 i = 0
 while (df.loc[indices_train].loc[(df.sex == True) & (df.income == True)].shape[0] /
-    df.loc[indices_train].loc[df.sex == True].shape[0]) - (df.loc[indices_train].loc[(df.sex == False) & (df.income == True)].shape[0] /
-       df.loc[indices_train].loc[df.sex == False].shape[0]) > (df.loc[indices_test].loc[(df.sex == True) & (df.income == True)].shape[0] /
-    df.loc[indices_test].loc[df.sex == True].shape[0]) - (df.loc[indices_test].loc[(df.sex == False) & (df.income == True)].shape[0] /
-      df.loc[indices_test].loc[df.sex == False].shape[0]):
+       df.loc[indices_train].loc[df.sex == True].shape[0]) - (
+        df.loc[indices_train].loc[(df.sex == False) & (df.income == True)].shape[0] /
+        df.loc[indices_train].loc[df.sex == False].shape[0]) > 0:
     df.loc[promotion_candidates.index[i], 'income'] = True
     df.loc[demotion_candidates.index[i], 'income'] = False
     i += 1
 print("Amount of promotions/demotions = " + str(i))
+
+# Statistical parity discrimination of training set after massaging
+print((df.loc[indices_train].loc[(df.sex == True) & (df.income == True)].shape[0] /
+       df.loc[indices_train].loc[df.sex == True].shape[0]) - (
+              df.loc[indices_train].loc[(df.sex == False) & (df.income == True)].shape[0] /
+              df.loc[indices_train].loc[df.sex == False].shape[0]))
 
 # Reinitialize training set with updated data
 x_train = df.loc[indices_train].drop('income', axis=1)
 y_train = df.loc[indices_train, 'income']
 
 # Perform grid search to find the optimal hyperparameters
-clf = DecisionTreeClassifier(random_state=17)
+gridsearch.fit(x_train, y_train)
+
+# Results of grid search
+print(gridsearch.best_params_)
+print(gridsearch.best_score_)
+nd_clf = gridsearch.best_estimator_
+
+# Compute accuracy on test set
+acc_nd_ts = accuracy_score(y_test, nd_clf.predict(x_test))
+
+#%% Remove discrimination in test set through preferential sampling
+# Perform 5-fold cross validation grid search to find the optimal hyperparameters
+gridsearch.fit(x_test, y_test)
+
+# Results of grid search
+print(gridsearch.best_params_)
+print(gridsearch.best_score_)
+test_clf = gridsearch.best_estimator_
+
+# Predict probability scores on test set
+scores = test_clf.predict_proba(x_test)[:, 1]
+
+# Concatenate dataframe with probability scores
+#test_scores = pd.concat([df.loc[indices_test, ['sex', 'income']], pd.Series(scores, name='score')], axis=1)
+test_scores = df.loc[indices_test, ['sex', 'income']]
+test_scores.loc[:, 'score'] = scores
+
+# calculate expected size of each combination of socio-demographic and class
+DN_size = int(round((test_scores.loc[(test_scores.sex == False)].shape[0] *
+                     test_scores.loc[(test_scores.income == False)].shape[0]) / test_scores.shape[0]))
+DP_size = int(round((test_scores.loc[(test_scores.sex == False)].shape[0] *
+                     test_scores.loc[(test_scores.income == True)].shape[0]) / test_scores.shape[0]))
+FN_size = int(round((test_scores.loc[(test_scores.sex == True)].shape[0] *
+                     test_scores.loc[(test_scores.income == False)].shape[0]) / test_scores.shape[0]))
+FP_size = int(round((test_scores.loc[(test_scores.sex == True)].shape[0] *
+                     test_scores.loc[(test_scores.income == True)].shape[0]) / test_scores.shape[0]))
+
+# Take a subset of each combination of socio-demographic and class with probability scores and sort by score,
+# sort the subsets concerning the negative class descending
+DN = test_scores.loc[(test_scores.sex == False) & (test_scores.income == False)].sort_values(by='score',
+                                                                                             ascending=False)
+DP = test_scores.loc[(test_scores.sex == False) & (test_scores.income == True)].sort_values(by='score')
+FN = test_scores.loc[(test_scores.sex == True) & (test_scores.income == False)].sort_values(by='score',
+                                                                                            ascending=False)
+FP = test_scores.loc[(test_scores.sex == True) & (test_scores.income == True)].sort_values(by='score')
+
+# Print expected and actual sizes
+print("DN expected size: " + str(DN_size))
+print('DN actual size: ' + str(DN.shape[0]))
+print("DP expected size: " + str(DP_size))
+print('DP actual size: ' + str(DP.shape[0]))
+print("FN expected size: " + str(FN_size))
+print('FN actual size: ' + str(FN.shape[0]))
+print("FP expected size: " + str(FP_size))
+print('FP actual size: ' + str(FP.shape[0]))
+
+# As long as the observed size of the combination of the socio-demographic and the class in the test indices
+# is smaller than the expected size, duplicate or remove samples
+print("Starting DN removals...")
+i = 0
+while df.loc[indices_test].loc[(df.sex == False) & (df.income == False)].shape[0] > DN_size:
+    # Remove record from dataframe
+    df.drop(DN.index[i], inplace=True)
+    # Remove record's index from test indices
+    indices_test = np.delete(indices_test, np.argwhere(indices_test == DN.index[i]))
+    i += 1
+print(str(i) + ' DN removals')
+
+print("Starting DP duplications...")
+i = 0
+while df.loc[indices_test].loc[(df.sex == False) & (df.income == True)].shape[0] < DP_size:
+    # Duplicate record in dataframe
+    row = df.loc[DP.index[i]]
+    row.name = np.amax(df.index) + 1
+    df = pd.concat([df, pd.DataFrame([row])])
+    #df.loc[df.index[-1]+1] = df.loc[DP.index[0]]
+    # Add index of duplicated record to test indices
+    indices_test = np.append(indices_test, np.amax(df.index))
+    i += 1
+    # When the amount of records that need to be duplicated exceeds the amount of records with the combination of the
+    # socio-demographic and the class, simply reiterate over the subset when the end is reached
+    if i >= DP.shape[0]:
+        i = 0
+print(str(i) + ' DP duplications')
+
+print("Starting FN duplications...")
+i = 0
+while df.loc[indices_test].loc[(df.sex == True) & (df.income == False)].shape[0] < FN_size:
+    # Duplicate record in dataframe
+    row = df.loc[FN.index[i]]
+    row.name = np.amax(df.index) + 1
+    df = pd.concat([df, pd.DataFrame([row])])
+    # Add index of duplicated record to test indices
+    indices_test = np.append(indices_test, np.amax(df.index))
+    i += 1
+    # When the amount of records that need to be duplicated exceeds the amount of records with the combination of the
+    # socio-demographic and the class, simply reiterate over the subset when the end is reached
+    if i >= FN.shape[0]:
+        i = 0
+print(str(i) + ' FN duplications')
+
+print("Starting FP removals...")
+i = 0
+while df.loc[indices_test].loc[(df.sex == True) & (df.income == True)].shape[0] > FP_size:
+    # Remove record from dataframe
+    df.drop(FP.index[i], inplace=True)
+    # Remove record's index from test indices
+    indices_test = np.delete(indices_test, np.argwhere(indices_test == FP.index[i]))
+    i += 1
+print(str(i) + ' FP removals')
+
+# Reinitialize test set
+x_test = df.loc[indices_test].drop('income', axis=1)
+y_test = df.loc[indices_test, 'income']
+
+# Compute accuracy on new test set of both models
+acc_d_nd = accuracy_score(y_test, d_clf.predict(x_test))
+acc_nd_nd = accuracy_score(y_test, nd_clf.predict(x_test))
+
+# Print accuracies
+print("Accuracy of the base model on the test set: " + str(acc_d_ts))
+print("Accuracy of the non-discriminatory model on the test set: " + str(acc_nd_ts))
+print("Accuracy of the base model on the simulated non-discriminatory test set: " + str(acc_d_nd))
+print("Accuracy of the non-discriminating model on the simulated non-discriminatory test set: " + str(acc_nd_nd))
+
+# Train K-nearest-neighbors classifier
+# Perform 5-fold cross validation grid search to find the optimal hyperparameters
+clf = KNeighborsClassifier()
 param_grid = {
-    'max_depth': [None, 10, 20, 30, 40],
-    'min_samples_split': [20, 50, 100, 150],
-    'min_samples_leaf': [10, 25, 50, 75],
-    'max_features': [None, 'sqrt', 'log2'],
-    'criterion': ['gini', 'entropy'],
+    'n_neighbors': [3, 5, 7, 10, 15, 20],
+    'weights': ['uniform', 'distance'],
+    'p': [1, 2],
+    'algorithm': ['auto', 'ball_tree', 'kd_tree']
 }
 gridsearch = GridSearchCV(clf, param_grid, n_jobs=-1, verbose=1)
 gridsearch.fit(x_train, y_train)
@@ -222,10 +356,7 @@ gridsearch.fit(x_train, y_train)
 # Results of grid search
 print(gridsearch.best_params_)
 print(gridsearch.best_score_)
-clf = gridsearch.best_estimator_
 
-# Compute accuracy on test set
-accuracy2 = accuracy_score(y_test, clf.predict(x_test))
-print(accuracy2)
+knn_d_clf = gridsearch.best_estimator_
 
 print('lol')
