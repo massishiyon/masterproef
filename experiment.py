@@ -1,3 +1,8 @@
+######################
+# The code in this file was not used for the paper, please ignore
+######################
+
+
 #%%
 #pip install ucimlrepo
 
@@ -101,16 +106,18 @@ print(df.loc[indices_train].loc[(df.sex == 'Male') & (df.income == '>50K')].shap
 print(df.loc[indices_train].loc[(df.sex == 'Female') & (df.income == '>50K')].shape[0] /
       df.loc[indices_train].loc[df.sex == 'Female'].shape[0])
 print((df.loc[indices_train].loc[(df.sex == 'Male') & (df.income == '>50K')].shape[0] /
-      df.loc[indices_train].loc[df.sex == 'Male'].shape[0]) - (df.loc[indices_train].loc[(df.sex == 'Female') & (df.income == '>50K')].shape[0] /
-      df.loc[indices_train].loc[df.sex == 'Female'].shape[0]))
+       df.loc[indices_train].loc[df.sex == 'Male'].shape[0]) - (
+                  df.loc[indices_train].loc[(df.sex == 'Female') & (df.income == '>50K')].shape[0] /
+                  df.loc[indices_train].loc[df.sex == 'Female'].shape[0]))
 
 print(df.loc[indices_test].loc[(df.sex == 'Male') & (df.income == '>50K')].shape[0] /
       df.loc[indices_test].loc[df.sex == 'Male'].shape[0])
 print(df.loc[indices_test].loc[(df.sex == 'Female') & (df.income == '>50K')].shape[0] /
       df.loc[indices_test].loc[df.sex == 'Female'].shape[0])
 print((df.loc[indices_test].loc[(df.sex == 'Male') & (df.income == '>50K')].shape[0] /
-      df.loc[indices_test].loc[df.sex == 'Male'].shape[0]) - (df.loc[indices_test].loc[(df.sex == 'Female') & (df.income == '>50K')].shape[0] /
-      df.loc[indices_test].loc[df.sex == 'Female'].shape[0]))
+       df.loc[indices_test].loc[df.sex == 'Male'].shape[0]) - (
+                  df.loc[indices_test].loc[(df.sex == 'Female') & (df.income == '>50K')].shape[0] /
+                  df.loc[indices_test].loc[df.sex == 'Female'].shape[0]))
 
 # Normalizing discrete/continuous variables
 df = df.assign(age=fnc.normalize(df.age, indices_train))
@@ -139,7 +146,7 @@ df.drop('race', axis=1, inplace=True)
 df = df.assign(sex=fnc.generate_dummies(df.sex, 'sex'))  # female = False, male = True
 df = pd.concat([df, fnc.generate_dummies(df['native-country'], 'native-country')], axis=1)
 df.drop('native-country', axis=1, inplace=True)
-df = df.assign(income=fnc.generate_dummies(df.income, 'income')) # <=50k = False, >50K = True
+df = df.assign(income=fnc.generate_dummies(df.income, 'income'))  # <=50k = False, >50K = True
 
 #%% Remove discrimination in the training set through massaging
 # Assign train and test instances of features X and outcome Y
@@ -176,31 +183,47 @@ scores = clf.predict_proba(x_train)[:, 1]
 # create dataframes of candidates for promotion and demotion
 train_scores = pd.concat([df.loc[indices_train, ['sex', 'income']], pd.Series(scores, name='score')], axis=1)
 
-promotion_candidates = train_scores.loc[(train_scores.sex == False) & (train_scores.income == False)].sort_values(by='score', ascending=False)
-demotion_candidates = train_scores.loc[(train_scores.sex == True) & (train_scores.income == True)].sort_values(by='score')
+promotion_candidates = train_scores.loc[(train_scores.sex == False) & (train_scores.income == False)].sort_values(
+    by='score', ascending=False)
+demotion_candidates = train_scores.loc[(train_scores.sex == True) & (train_scores.income == True)].sort_values(
+    by='score')
 
-# Statistical parity discrimination of training set
-print((df.loc[indices_train].loc[(df.sex == True) & (df.income == True)].shape[0] /
-    df.loc[indices_train].loc[df.sex == True].shape[0]) - (df.loc[indices_train].loc[(df.sex == False) & (df.income == True)].shape[0] /
-       df.loc[indices_train].loc[df.sex == False].shape[0]))
+# Statistical parity discrimination of training set before massaging
+print("Statistical parity discrimination of training set before massaging: " + str(
+    (df.loc[indices_train].loc[(df.sex == True) & (df.income == True)].shape[0] /
+     df.loc[indices_train].loc[df.sex == True].shape[0]) - (
+                df.loc[indices_train].loc[(df.sex == False) & (df.income == True)].shape[0] /
+                df.loc[indices_train].loc[df.sex == False].shape[0])))
 
 # Statistical parity discrimination of test set
-print((df.loc[indices_test].loc[(df.sex == True) & (df.income == True)].shape[0] /
-    df.loc[indices_test].loc[df.sex == True].shape[0]) - (df.loc[indices_test].loc[(df.sex == False) & (df.income == True)].shape[0] /
-      df.loc[indices_test].loc[df.sex == False].shape[0]))
+print("Statistical parity discrimination of test set: " + str(
+    (df.loc[indices_test].loc[(df.sex == True) & (df.income == True)].shape[0] /
+     df.loc[indices_test].loc[df.sex == True].shape[0]) - (
+                df.loc[indices_test].loc[(df.sex == False) & (df.income == True)].shape[0] /
+                df.loc[indices_test].loc[df.sex == False].shape[0])))
 
 # As long as the statistical parity discrimination of training set is bigger than that of the test set, keep iterating
 print('Starting promotions/demotions...')
 i = 0
 while (df.loc[indices_train].loc[(df.sex == True) & (df.income == True)].shape[0] /
-    df.loc[indices_train].loc[df.sex == True].shape[0]) - (df.loc[indices_train].loc[(df.sex == False) & (df.income == True)].shape[0] /
-       df.loc[indices_train].loc[df.sex == False].shape[0]) > (df.loc[indices_test].loc[(df.sex == True) & (df.income == True)].shape[0] /
-    df.loc[indices_test].loc[df.sex == True].shape[0]) - (df.loc[indices_test].loc[(df.sex == False) & (df.income == True)].shape[0] /
-      df.loc[indices_test].loc[df.sex == False].shape[0]):
+       df.loc[indices_train].loc[df.sex == True].shape[0]) - (
+        df.loc[indices_train].loc[(df.sex == False) & (df.income == True)].shape[0] /
+        df.loc[indices_train].loc[df.sex == False].shape[0]) > (
+        df.loc[indices_test].loc[(df.sex == True) & (df.income == True)].shape[0] /
+        df.loc[indices_test].loc[df.sex == True].shape[0]) - (
+        df.loc[indices_test].loc[(df.sex == False) & (df.income == True)].shape[0] /
+        df.loc[indices_test].loc[df.sex == False].shape[0]):
     df.loc[promotion_candidates.index[i], 'income'] = True
     df.loc[demotion_candidates.index[i], 'income'] = False
     i += 1
 print("Amount of promotions/demotions = " + str(i))
+
+# Statistical parity discrimination of training set after massaging
+print("Statistical parity discrimination of training set after massaging: " + str(
+    (df.loc[indices_train].loc[(df.sex == True) & (df.income == True)].shape[0] /
+     df.loc[indices_train].loc[df.sex == True].shape[0]) - (
+                df.loc[indices_train].loc[(df.sex == False) & (df.income == True)].shape[0] /
+                df.loc[indices_train].loc[df.sex == False].shape[0])))
 
 # Reinitialize training set with updated data
 x_train = df.loc[indices_train].drop('income', axis=1)
