@@ -644,5 +644,3 @@ axes[0].tick_params(axis='y', direction='in', right=True)
 axes[1].tick_params(axis='y', direction='in', right=True)
 plt.tight_layout()
 plt.show()
-
-print('lol')
