@@ -16,8 +16,9 @@ import matplotlib.pyplot as plt
 
 np.set_printoptions(threshold=sys.maxsize)
 
+
 #%% Loading data
-# fetch dataset
+# fetch dataset https://archive.ics.uci.edu/dataset/20/census+income
 census_income = fetch_ucirepo(id=20)
 df = census_income.data.original
 
@@ -27,8 +28,8 @@ print(census_income.metadata)
 # variable information
 print(census_income.variables)
 
-#%% Data analysis
 
+#%% Data analysis
 # Amount of observations
 print(df.shape[0])  # 48842
 
@@ -93,25 +94,28 @@ percentage_train = 0.8
 indices_train = np.array(df.iloc[:int(round(df.shape[0] * percentage_train))].index.values.tolist())
 indices_test = np.array(df.iloc[int(round(df.shape[0] * percentage_train)):].index.values.tolist())
 #indices_train, indices_test = train_test_split(np.arange(df.shape[0]), test_size=1-percentage_train, random_state=0)
+# Not randomly splitting for now because results need to stay constant for every run
 
-# Calculate chance of having income >50K for both sexes and discrimination for training and test sets
-print(df.loc[indices_train].loc[(df.sex == 'Male') & (df.income == '>50K')].shape[0] /
-      df.loc[indices_train].loc[df.sex == 'Male'].shape[0])
-print(df.loc[indices_train].loc[(df.sex == 'Female') & (df.income == '>50K')].shape[0] /
-      df.loc[indices_train].loc[df.sex == 'Female'].shape[0])
-print((df.loc[indices_train].loc[(df.sex == 'Male') & (df.income == '>50K')].shape[0] /
-       df.loc[indices_train].loc[df.sex == 'Male'].shape[0]) - (
-              df.loc[indices_train].loc[(df.sex == 'Female') & (df.income == '>50K')].shape[0] /
-              df.loc[indices_train].loc[df.sex == 'Female'].shape[0]))
+# Calculate chance of having income >50K given each sex and discrimination for training and test sets
+# Chance of having income >50K given being male for training set
+highincome_male_prob_train = df.loc[indices_train].loc[(df.sex == 'Male') & (df.income == '>50K')].shape[0] / df.loc[indices_train].loc[df.sex == 'Male'].shape[0]
+print(highincome_male_prob_train)
+# Chance of having income >50K given being female for training set
+highincome_female_prob_train = df.loc[indices_train].loc[(df.sex == 'Female') & (df.income == '>50K')].shape[0] / df.loc[indices_train].loc[df.sex == 'Female'].shape[0]
+print(highincome_female_prob_train)
+# Discrimination for training set
+print(highincome_male_prob_train - highincome_female_prob_train)
 
-print(df.loc[indices_test].loc[(df.sex == 'Male') & (df.income == '>50K')].shape[0] /
-      df.loc[indices_test].loc[df.sex == 'Male'].shape[0])
-print(df.loc[indices_test].loc[(df.sex == 'Female') & (df.income == '>50K')].shape[0] /
-      df.loc[indices_test].loc[df.sex == 'Female'].shape[0])
-print((df.loc[indices_test].loc[(df.sex == 'Male') & (df.income == '>50K')].shape[0] /
-       df.loc[indices_test].loc[df.sex == 'Male'].shape[0]) - (
-              df.loc[indices_test].loc[(df.sex == 'Female') & (df.income == '>50K')].shape[0] /
-              df.loc[indices_test].loc[df.sex == 'Female'].shape[0]))
+# move to between preprocessing and reverse massaging?
+# Chance of having income >50K given being male for test set
+highincome_male_prob_test = df.loc[indices_test].loc[(df.sex == 'Male') & (df.income == '>50K')].shape[0] / df.loc[indices_test].loc[df.sex == 'Male'].shape[0]
+print(highincome_male_prob_test)
+# Chance of having income >50K given being female for test set
+highincome_female_prob_test = df.loc[indices_test].loc[(df.sex == 'Female') & (df.income == '>50K')].shape[0] / df.loc[indices_test].loc[df.sex == 'Female'].shape[0]
+print(highincome_female_prob_test)
+# Discrimination for test set
+discr_test = highincome_male_prob_test - highincome_female_prob_test
+print(discr_test)
 
 # Normalizing discrete/continuous variables
 df = df.assign(age=fnc.normalize(df.age, indices_train))
@@ -142,7 +146,6 @@ df = pd.concat([df, fnc.generate_dummies(df['native-country'], 'native-country')
 df.drop('native-country', axis=1, inplace=True)
 df = df.assign(income=fnc.generate_dummies(df.income, 'income'))  # <=50k = False, >50K = True
 
-#%% Remove discrimination in the training set through massaging
 # Assign train and test instances of features X and outcome Y
 x_train = df.loc[indices_train].drop('income', axis=1)
 y_train = df.loc[indices_train, 'income']
@@ -150,6 +153,65 @@ y_train = df.loc[indices_train, 'income']
 x_test = df.loc[indices_test].drop('income', axis=1)
 y_test = df.loc[indices_test, 'income']
 
+
+# PS best
+# for massaging, stable classifiers like naive bayes have more accuracy and more discrimination, in this case better
+# than unstable ones like tree
+# probably remove sex attribute for prediction
+# weka default parameters were used in kamiran & calders
+#%% Reverse massaging to create a more discriminatory training set
+
+# 5-fold CV gridsearch for massaging classifier
+clf = GaussianNB()
+param_grid = {
+    'var_smoothing': np.logspace(0, -7)
+}
+gridsearch = GridSearchCV(clf, param_grid, n_jobs=-1, verbose=1)
+gridsearch.fit(x_train, y_train)
+
+# Results of grid search
+print(gridsearch.best_params_)
+print(gridsearch.best_score_)
+clf = gridsearch.best_estimator_
+
+# Predict probability scores on training set
+scores = clf.predict_proba(x_train)[:, 1]
+
+# Create dataframes of candidates for promotion and demotion
+# Promotion candidates: males with low income
+# Demotion candidates: females with high income
+train_scores = df.loc[indices_train, ['sex', 'income']]
+train_scores.loc[:, 'score'] = scores
+
+promotion_candidates = train_scores.loc[(train_scores.sex == True) & (train_scores.income == False)].sort_values(
+    by='score', ascending=False)
+demotion_candidates = train_scores.loc[(train_scores.sex == False) & (train_scores.income == True)].sort_values(
+    by='score')
+
+print('Starting promotions/demotions...')
+i = 0
+while (df.loc[indices_train].loc[(df.sex == True) & (df.income == True)].shape[0] /
+       df.loc[indices_train].loc[df.sex == True].shape[0]) - (
+        df.loc[indices_train].loc[(df.sex == False) & (df.income == True)].shape[0] /
+        df.loc[indices_train].loc[df.sex == False].shape[0]) < discr_test*2:
+    df.loc[promotion_candidates.index[i], 'income'] = True
+    df.loc[demotion_candidates.index[i], 'income'] = False
+    i += 1
+print("Amount of promotions/demotions = " + str(i))
+
+# Statistical parity discrimination of training set after reverse massaging
+print("Statistical parity discrimination after massaging: " + str(
+    (df.loc[indices_train].loc[(df.sex == True) & (df.income == True)].shape[0] /
+     df.loc[indices_train].loc[df.sex == True].shape[0]) - (
+            df.loc[indices_train].loc[(df.sex == False) & (df.income == True)].shape[0] /
+            df.loc[indices_train].loc[df.sex == False].shape[0])))
+
+# Reinitialize training set with updated data
+d_x_train = df.loc[indices_train].drop('income', axis=1)
+d_y_train = df.loc[indices_train, 'income']
+
+
+#%% Remove discrimination in the training set through massaging
 # Perform 5-fold cross validation grid search to find the optimal hyperparameters
 clf = DecisionTreeClassifier(random_state=0)
 param_grid = {
@@ -588,7 +650,7 @@ plt.tight_layout()
 plt.show()
 
 
-#%% Visualizing results Nederlands
+#%% Visualizing results Nederlands (zelfde grafieken)
 # Figure accuracies & discriminations of models on test set
 fig, axes = plt.subplots(1, 2, figsize=(12, 6))
 
@@ -644,3 +706,25 @@ axes[0].tick_params(axis='y', direction='in', right=True)
 axes[1].tick_params(axis='y', direction='in', right=True)
 plt.tight_layout()
 plt.show()
+
+train = pd.concat([x_train, y_train], axis=1)
+test = pd.concat([nd_x_test, nd_y_test], axis=1)
+nd_train = pd.concat([nd_x_train, nd_y_train], axis=1)
+
+# Math theorem test
+# Probability of high income given male in train set - same probability in test set * proportion of men in train -
+# prob of high income given female in train set - same prob in test set * proportion of female in train
+# then same for non-discriminatory train set vs test set (already non-discriminatory), this number should be lower (?)
+# haakjes rond kans hoog inkomen man train - zelfde kans test?
+a = (train.loc[(train.sex == True) & (train.income == True)].shape[0] / train.loc[train.sex == True].shape[0]) - (
+        test.loc[(test.sex == True) & (test.income == True)].shape[0] / test.loc[test.sex == True].shape[0]) * (
+        train.loc[train.sex == True].shape[0] / train.shape[0]) - (train.loc[(train.sex == False) & (train.income == True)].shape[0] / train.loc[train.sex == False].shape[0]) - (
+        test.loc[(test.sex == False) & (test.income == True)].shape[0] / test.loc[test.sex == False].shape[0]) * (
+        train.loc[train.sex == False].shape[0] / train.shape[0])
+b = (nd_train.loc[(nd_train.sex == True) & (nd_train.income == True)].shape[0] / nd_train.loc[nd_train.sex == True].shape[0]) - (
+        test.loc[(test.sex == True) & (test.income == True)].shape[0] / test.loc[test.sex == True].shape[0]) * (
+        nd_train.loc[nd_train.sex == True].shape[0] / nd_train.shape[0]) - (nd_train.loc[(nd_train.sex == False) & (nd_train.income == True)].shape[0] / nd_train.loc[nd_train.sex == False].shape[0]) - (
+        test.loc[(test.sex == False) & (test.income == True)].shape[0] / test.loc[test.sex == False].shape[0]) * (
+        nd_train.loc[nd_train.sex == False].shape[0] / nd_train.shape[0])
+print(a)
+print(b)
