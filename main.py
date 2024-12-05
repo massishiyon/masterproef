@@ -137,15 +137,16 @@ d_y_test = df.loc[indices_test, 'income']
 
 #%% Before eliminating discrimination, calculate chance of having income >50K given each sex and discrimination
 # for test set
+print("Before eliminating discrimination in test set:")
 # Chance of having income >50K given being male for test set
 highincome_male_prob_test = df.loc[indices_test].loc[(df.sex == True) & (df.income == True)].shape[0] / df.loc[indices_test].loc[df.sex == True].shape[0]
-print("Chance of having income >50K given being male for test set" + str(highincome_male_prob_test))
+print("Chance of having income >50K given being male: " + str(highincome_male_prob_test))
 # Chance of having income >50K given being female for test set
 highincome_female_prob_test = df.loc[indices_test].loc[(df.sex == False) & (df.income == True)].shape[0] / df.loc[indices_test].loc[df.sex == False].shape[0]
-print("Chance of having income >50K given being female for test set " + str(highincome_female_prob_test))
+print("Chance of having income >50K given being female: " + str(highincome_female_prob_test))
 # Discrimination for test set
 discr_test = highincome_male_prob_test - highincome_female_prob_test
-print("Discrimination for test set" + str(discr_test))
+print("Statistical parity discrimination: " + str(discr_test))
 
 
 # PS best
@@ -156,18 +157,9 @@ print("Discrimination for test set" + str(discr_test))
 #%% Remove discrimination in test set through preferential sampling
 # Perform 5-fold cross validation grid search to find the optimal hyperparameters
 param_grid = {
-    'max_depth': [None, 10, 20, 30, 40],
-    'min_samples_split': [20, 50, 100, 150],
-    'min_samples_leaf': [10, 25, 50, 75],
-    'max_features': [None, 'sqrt', 'log2'],
-    'criterion': ['gini', 'entropy'],
-}
-"""
-param_grid = {
     'var_smoothing': np.logspace(0, -7)
 }
-"""
-gridsearch = GridSearchCV(DecisionTreeClassifier(random_state=0), param_grid, n_jobs=-1, verbose=1)
+gridsearch = GridSearchCV(GaussianNB(), param_grid, n_jobs=-1, verbose=1)
 gridsearch.fit(d_x_test, d_y_test)
 
 # Results of grid search
@@ -272,29 +264,45 @@ nd_x_test = df.loc[indices_test].drop('income', axis=1)
 nd_y_test = df.loc[indices_test, 'income']
 
 
+#%% After eliminating discrimination, calculate chance of having income >50K given each sex and discrimination
+# for test set
+print("After eliminating discrimination in test set:")
+# Chance of having income >50K given being male for test set
+highincome_male_prob_test = df.loc[indices_test].loc[(df.sex == True) & (df.income == True)].shape[0] / df.loc[indices_test].loc[df.sex == True].shape[0]
+print("Chance of having income >50K given being male: " + str(highincome_male_prob_test))
+# Chance of having income >50K given being female for test set
+highincome_female_prob_test = df.loc[indices_test].loc[(df.sex == False) & (df.income == True)].shape[0] / df.loc[indices_test].loc[df.sex == False].shape[0]
+print("Chance of having income >50K given being female: " + str(highincome_female_prob_test))
+# Discrimination for test set
+discr_test = highincome_male_prob_test - highincome_female_prob_test
+print("Statistical parity discrimination: " + str(discr_test))
+
+
 #%% Before eliminating discrimination, calculate chance of having income >50K given each sex and discrimination
 # for training set
+print("Before eliminating discrimination in training set:")
 # Chance of having income >50K given being male for training set
 highincome_male_prob_train = df.loc[indices_train].loc[(df.sex == True) & (df.income == True)].shape[0] / df.loc[indices_train].loc[df.sex == True].shape[0]
-print("Chance of having income >50K given being male for training set " + str(highincome_male_prob_train))
+print("Chance of having income >50K given being male " + str(highincome_male_prob_train))
 # Chance of having income >50K given being female for training set
 highincome_female_prob_train = df.loc[indices_train].loc[(df.sex == False) & (df.income == True)].shape[0] / df.loc[indices_train].loc[df.sex == False].shape[0]
-print("Chance of having income >50K given being female for training set " + str(highincome_female_prob_train))
+print("Chance of having income >50K given being female " + str(highincome_female_prob_train))
 # Discrimination for training set
-print("Discrimination for training set " + str(highincome_male_prob_train - highincome_female_prob_train))
+print("Statistical parity discrimination " + str(highincome_male_prob_train - highincome_female_prob_train))
 
 
 #%% Remove discrimination in the training set through massaging
 # Perform 5-fold cross validation grid search to find the optimal hyperparameters
+# Same gridsearch as earlier
 gridsearch.fit(d_x_train, d_y_train)
 
 # Results of grid search
 print(gridsearch.best_params_)
 print(gridsearch.best_score_)
-dt_d_clf = gridsearch.best_estimator_
+gnb_d_clf = gridsearch.best_estimator_
 
 # Predict probability scores on training set
-scores = dt_d_clf.predict_proba(d_x_train)[:, 1]
+scores = gnb_d_clf.predict_proba(d_x_train)[:, 1]
 
 # Create dataframes of candidates for promotion and demotion
 # Promotion candidates: females with low income
@@ -308,13 +316,6 @@ promotion_candidates = train_scores.loc[(train_scores.sex == False) & (train_sco
 demotion_candidates = train_scores.loc[(train_scores.sex == True) & (train_scores.income == True)].sort_values(
     by='score')
 
-# Statistical parity discrimination of training set before massaging
-print("Statistical parity discrimination before massaging: " + str(
-    (df.loc[indices_train].loc[(df.sex == True) & (df.income == True)].shape[0] /
-     df.loc[indices_train].loc[df.sex == True].shape[0]) - (
-            df.loc[indices_train].loc[(df.sex == False) & (df.income == True)].shape[0] /
-            df.loc[indices_train].loc[df.sex == False].shape[0])))
-
 # As long as the statistical parity discrimination of training set is bigger than 0, keep iterating
 print('Starting promotions/demotions...')
 i = 0
@@ -327,21 +328,105 @@ while (df.loc[indices_train].loc[(df.sex == True) & (df.income == True)].shape[0
     i += 1
 print("Amount of promotions/demotions = " + str(i))
 
-# Statistical parity discrimination of training set after massaging
-print("Statistical parity discrimination after massaging: " + str(
-    (df.loc[indices_train].loc[(df.sex == True) & (df.income == True)].shape[0] /
-     df.loc[indices_train].loc[df.sex == True].shape[0]) - (
-            df.loc[indices_train].loc[(df.sex == False) & (df.income == True)].shape[0] /
-            df.loc[indices_train].loc[df.sex == False].shape[0])))
-
 # Save features X and outcome Y of the updated non-discriminatory training data in their own dataframes
 nd_x_train = df.loc[indices_train].drop('income', axis=1)
 nd_y_train = df.loc[indices_train, 'income']
 
 
-#%% Decision tree classifier
+#%% After eliminating discrimination, calculate chance of having income >50K given each sex and discrimination
+# for training set
+print("After eliminating discrimination in training set:")
+# Chance of having income >50K given being male for training set
+highincome_male_prob_train = df.loc[indices_train].loc[(df.sex == True) & (df.income == True)].shape[0] / df.loc[indices_train].loc[df.sex == True].shape[0]
+print("Chance of having income >50K given being male " + str(highincome_male_prob_train))
+# Chance of having income >50K given being female for training set
+highincome_female_prob_train = df.loc[indices_train].loc[(df.sex == False) & (df.income == True)].shape[0] / df.loc[indices_train].loc[df.sex == False].shape[0]
+print("Chance of having income >50K given being female " + str(highincome_female_prob_train))
+# Discrimination for training set
+print("Statistical parity discrimination " + str(highincome_male_prob_train - highincome_female_prob_train))
+
+
+#%% Naive Bayes classifier
 # Discriminatory model already trained
-# Train non-discriminatory model (on massaged dataset): same gridsearch
+# Train non-discriminatory model (on massaged dataset): same gridsearch as earlier
+gridsearch.fit(nd_x_train, nd_y_train)
+
+# Results of grid search
+print(gridsearch.best_params_)
+print(gridsearch.best_score_)
+gnb_nd_clf = gridsearch.best_estimator_
+
+# Compute accuracies
+gnb_d_d_preds = gnb_d_clf.predict(d_x_test)
+gnb_d_d_acc = accuracy_score(d_y_test, gnb_d_d_preds)
+gnb_nd_d_preds = gnb_nd_clf.predict(d_x_test)
+gnb_nd_d_acc = accuracy_score(d_y_test, gnb_nd_d_preds)
+gnb_d_nd_preds = gnb_d_clf.predict(nd_x_test)
+gnb_d_nd_acc = accuracy_score(nd_y_test, gnb_d_nd_preds)
+gnb_nd_nd_preds = gnb_nd_clf.predict(nd_x_test)
+gnb_nd_nd_acc = accuracy_score(nd_y_test, gnb_nd_nd_preds)
+
+# Compute statistical parity discriminations
+test_preds = pd.DataFrame(d_x_test.loc[:, 'sex'])
+test_preds.loc[:, 'prediction'] = gnb_d_d_preds
+gnb_d_d_dscrm = (test_preds.loc[(test_preds.sex == True) & (test_preds.prediction == True)].shape[0] /
+                 test_preds.loc[test_preds.sex == True].shape[0]) - (
+                         test_preds.loc[(test_preds.sex == False) & (test_preds.prediction == True)].shape[0] /
+                         test_preds.loc[test_preds.sex == False].shape[0])
+
+test_preds = pd.DataFrame(d_x_test.loc[:, 'sex'])
+test_preds.loc[:, 'prediction'] = gnb_nd_d_preds
+gnb_nd_d_dscrm = (test_preds.loc[(test_preds.sex == True) & (test_preds.prediction == True)].shape[0] /
+                  test_preds.loc[test_preds.sex == True].shape[0]) - (
+                          test_preds.loc[(test_preds.sex == False) & (test_preds.prediction == True)].shape[0] /
+                          test_preds.loc[test_preds.sex == False].shape[0])
+
+test_preds = pd.DataFrame(nd_x_test.loc[:, 'sex'])
+test_preds.loc[:, 'prediction'] = gnb_d_nd_preds
+gnb_d_nd_dscrm = (test_preds.loc[(test_preds.sex == True) & (test_preds.prediction == True)].shape[0] /
+                  test_preds.loc[test_preds.sex == True].shape[0]) - (
+                         test_preds.loc[(test_preds.sex == False) & (test_preds.prediction == True)].shape[0] /
+                         test_preds.loc[test_preds.sex == False].shape[0])
+
+test_preds = pd.DataFrame(nd_x_test.loc[:, 'sex'])
+test_preds.loc[:, 'prediction'] = gnb_nd_nd_preds
+gnb_nd_nd_dscrm = (test_preds.loc[(test_preds.sex == True) & (test_preds.prediction == True)].shape[0] /
+                   test_preds.loc[test_preds.sex == True].shape[0]) - (
+                          test_preds.loc[(test_preds.sex == False) & (test_preds.prediction == True)].shape[0] /
+                          test_preds.loc[test_preds.sex == False].shape[0])
+
+# Print accuracies & discriminations
+print("Accuracy of the base GNB model on the test set: " + str(gnb_d_d_acc))
+print("Discrimination of the base GNB model on the test set: " + str(gnb_d_d_dscrm))
+print("Accuracy of the non-discriminatory GNB model on the test set: " + str(gnb_nd_d_acc))
+print("Discrimination of the non-discriminatory GNB model on the test set: " + str(gnb_nd_d_dscrm))
+print("Accuracy of the base GNB model on the simulated non-discriminatory test set: " + str(gnb_d_nd_acc))
+print("Discrimination of the base GNB model on the simulated non-discriminatory test set: " + str(gnb_d_nd_dscrm))
+print("Accuracy of the non-discriminating GNB model on the simulated non-discriminatory test set: " +
+      str(gnb_nd_nd_acc))
+print("Discrimination of the non-discriminating GNB model on the simulated non-discriminatory test set: " +
+      str(gnb_nd_nd_dscrm))
+
+
+#%% Decision tree classifier
+# Train model on original discriminatory training set: perform 5-fold cross validation grid search to find the
+# optimal hyperparameters
+param_grid = {
+    'max_depth': [None, 10, 20, 30, 40],
+    'min_samples_split': [20, 50, 100, 150],
+    'min_samples_leaf': [10, 25, 50, 75],
+    'max_features': [None, 'sqrt', 'log2'],
+    'criterion': ['gini', 'entropy'],
+}
+gridsearch = GridSearchCV(DecisionTreeClassifier(random_state=0), param_grid, n_jobs=-1, verbose=1)
+gridsearch.fit(d_x_train, d_y_train)
+
+# Results of grid search
+print(gridsearch.best_params_)
+print(gridsearch.best_score_)
+dt_d_clf = gridsearch.best_estimator_
+
+# Train model on massaged training set: Perform 5-fold cross validation grid search to find the optimal hyperparameters
 gridsearch.fit(nd_x_train, nd_y_train)
 
 # Results of grid search
@@ -403,8 +488,10 @@ print(
     "Discrimination of the non-discriminatory model on the simulated non-discriminatory test set: " + str(
         dt_nd_nd_dscrm))
 
+
 #%% K-nearest neighbors classifier
-# Train model on original training set: Perform 5-fold CV grid search to find the optimal hyperparameters
+# Train model on original discriminatory training set: Perform 5-fold CV grid search to find the optimal
+# hyperparameters
 param_grid = {
     'n_neighbors': [15, 20, 30, 40, 50],
     'weights': ['uniform', 'distance'],
@@ -476,78 +563,6 @@ print("Accuracy of the non-discriminatory KNN model on the simulated non-discrim
       str(knn_nd_nd_acc))
 print("Discrimination of the non-discriminatory KNN model on the simulated non-discriminatory test set: " +
       str(knn_nd_nd_dscrm))
-
-#%% Naive Bayes classifier
-# Train model on original training set: Perform 5-fold cross validation grid search to find the optimal hyperparameters
-param_grid = {
-    'var_smoothing': np.logspace(0, -7)
-}
-gridsearch = GridSearchCV(GaussianNB(), param_grid, n_jobs=-1, verbose=1)
-gridsearch.fit(d_x_train, d_y_train)
-
-# Results of grid search
-print(gridsearch.best_params_)
-print(gridsearch.best_score_)
-gnb_d_clf = gridsearch.best_estimator_
-
-# Train model on massaged training set: Perform 5-fold cross validation grid search to find the optimal hyperparameters
-gridsearch.fit(nd_x_train, nd_y_train)
-
-# Results of grid search
-print(gridsearch.best_params_)
-print(gridsearch.best_score_)
-gnb_nd_clf = gridsearch.best_estimator_
-
-# Compute accuracies
-gnb_d_d_preds = gnb_d_clf.predict(d_x_test)
-gnb_d_d_acc = accuracy_score(d_y_test, gnb_d_d_preds)
-gnb_nd_d_preds = gnb_nd_clf.predict(d_x_test)
-gnb_nd_d_acc = accuracy_score(d_y_test, gnb_nd_d_preds)
-gnb_d_nd_preds = gnb_d_clf.predict(nd_x_test)
-gnb_d_nd_acc = accuracy_score(nd_y_test, gnb_d_nd_preds)
-gnb_nd_nd_preds = gnb_nd_clf.predict(nd_x_test)
-gnb_nd_nd_acc = accuracy_score(nd_y_test, gnb_nd_nd_preds)
-
-# Compute statistical parity discriminations
-test_preds = pd.DataFrame(d_x_test.loc[:, 'sex'])
-test_preds.loc[:, 'prediction'] = gnb_d_d_preds
-gnb_d_d_dscrm = (test_preds.loc[(test_preds.sex == True) & (test_preds.prediction == True)].shape[0] /
-                 test_preds.loc[test_preds.sex == True].shape[0]) - (
-                         test_preds.loc[(test_preds.sex == False) & (test_preds.prediction == True)].shape[0] /
-                         test_preds.loc[test_preds.sex == False].shape[0])
-
-test_preds = pd.DataFrame(d_x_test.loc[:, 'sex'])
-test_preds.loc[:, 'prediction'] = gnb_nd_d_preds
-gnb_nd_d_dscrm = (test_preds.loc[(test_preds.sex == True) & (test_preds.prediction == True)].shape[0] /
-                  test_preds.loc[test_preds.sex == True].shape[0]) - (
-                          test_preds.loc[(test_preds.sex == False) & (test_preds.prediction == True)].shape[0] /
-                          test_preds.loc[test_preds.sex == False].shape[0])
-
-test_preds = pd.DataFrame(nd_x_test.loc[:, 'sex'])
-test_preds.loc[:, 'prediction'] = gnb_d_nd_preds
-gnb_d_nd_dscrm = (test_preds.loc[(test_preds.sex == True) & (test_preds.prediction == True)].shape[0] /
-                  test_preds.loc[test_preds.sex == True].shape[0]) - (
-                         test_preds.loc[(test_preds.sex == False) & (test_preds.prediction == True)].shape[0] /
-                         test_preds.loc[test_preds.sex == False].shape[0])
-
-test_preds = pd.DataFrame(nd_x_test.loc[:, 'sex'])
-test_preds.loc[:, 'prediction'] = gnb_nd_nd_preds
-gnb_nd_nd_dscrm = (test_preds.loc[(test_preds.sex == True) & (test_preds.prediction == True)].shape[0] /
-                   test_preds.loc[test_preds.sex == True].shape[0]) - (
-                          test_preds.loc[(test_preds.sex == False) & (test_preds.prediction == True)].shape[0] /
-                          test_preds.loc[test_preds.sex == False].shape[0])
-
-# Print accuracies & discriminations
-print("Accuracy of the base GNB model on the test set: " + str(gnb_d_d_acc))
-print("Discrimination of the base GNB model on the test set: " + str(gnb_d_d_dscrm))
-print("Accuracy of the non-discriminatory GNB model on the test set: " + str(gnb_nd_d_acc))
-print("Discrimination of the non-discriminatory GNB model on the test set: " + str(gnb_nd_d_dscrm))
-print("Accuracy of the base GNB model on the simulated non-discriminatory test set: " + str(gnb_d_nd_acc))
-print("Discrimination of the base GNB model on the simulated non-discriminatory test set: " + str(gnb_d_nd_dscrm))
-print("Accuracy of the non-discriminating GNB model on the simulated non-discriminatory test set: " +
-      str(gnb_nd_nd_acc))
-print("Discrimination of the non-discriminating GNB model on the simulated non-discriminatory test set: " +
-      str(gnb_nd_nd_dscrm))
 
 #%% Visualizing results
 # Set title and label sizes
