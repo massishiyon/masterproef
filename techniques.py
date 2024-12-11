@@ -7,10 +7,15 @@ import sys
 
 # Still specific to census income dataset!
 def massaging(df, indices_set, d_x_set, d_y_set, algorithm):
+    # Before massaging, calculate chance of having income >50K given each sex and discrimination
+    print("Before massaging:")
+    calc_dscrmn(df, indices_set)
+
     # Perform 5-fold cross validation grid search to find the optimal hyperparameters
     gridsearch = 0
     match algorithm:
         case "GNB" | "":
+            # Or: case algorithm if algorithm in ["GNB", ""]:
             param_grid = {
                 'var_smoothing': np.logspace(0, -7)
             }
@@ -60,10 +65,18 @@ def massaging(df, indices_set, d_x_set, d_y_set, algorithm):
     nd_x_set = df.loc[indices_set].drop('income', axis=1)
     nd_y_set = df.loc[indices_set, 'income']
 
-    return df, indices_set, nd_x_set, nd_y_set, clf
+    # After massaging, calculate chance of having income >50K given each sex and discrimination
+    print("After massaging:")
+    calc_dscrmn(df, indices_set)
+
+    return nd_x_set, nd_y_set, clf
 
 
 def preferential_sampling(df, indices_set, d_x_set, d_y_set, algorithm):
+    # Before preferential sampling, calculate chance of having income >50K given each sex and discrimination
+    print("Before preferential sampling:")
+    calc_dscrmn(df, indices_set)
+
     # Perform 5-fold cross validation grid search to find the optimal hyperparameters
     gridsearch = 0
     match algorithm:
@@ -95,6 +108,8 @@ def preferential_sampling(df, indices_set, d_x_set, d_y_set, algorithm):
     set_scores.loc[:, 'score'] = scores
 
     # calculate expected size of each combination of socio-demographic and class
+    # DN = Deprived community with negative class
+    # FP = Favored community with positive class
     DN_size = int(round((set_scores.loc[(set_scores.sex == False)].shape[0] *
                          set_scores.loc[(set_scores.income == False)].shape[0]) / set_scores.shape[0]))
     DP_size = int(round((set_scores.loc[(set_scores.sex == False)].shape[0] *
@@ -107,10 +122,10 @@ def preferential_sampling(df, indices_set, d_x_set, d_y_set, algorithm):
     # Take a subset of each combination of socio-demographic and class with probability scores and sort by score,
     # sort the subsets concerning the negative class descending
     DN = set_scores.loc[(set_scores.sex == False) & (set_scores.income == False)].sort_values(by='score',
-                                                                                                 ascending=False)
+                                                                                              ascending=False)
     DP = set_scores.loc[(set_scores.sex == False) & (set_scores.income == True)].sort_values(by='score')
     FN = set_scores.loc[(set_scores.sex == True) & (set_scores.income == False)].sort_values(by='score',
-                                                                                                ascending=False)
+                                                                                             ascending=False)
     FP = set_scores.loc[(set_scores.sex == True) & (set_scores.income == True)].sort_values(by='score')
 
     # Print expected and actual sizes
@@ -129,7 +144,7 @@ def preferential_sampling(df, indices_set, d_x_set, d_y_set, algorithm):
     i = 0
     while df.loc[indices_set].loc[(df.sex == False) & (df.income == False)].shape[0] > DN_size:
         # Remove record from dataframe
-        df.drop(DN.index[i], inplace=True)
+        df = df.drop(DN.index[i])
         # Remove record's index from set indices
         indices_set = np.delete(indices_set, np.argwhere(indices_set == DN.index[i]))
         i += 1
@@ -172,7 +187,7 @@ def preferential_sampling(df, indices_set, d_x_set, d_y_set, algorithm):
     i = 0
     while df.loc[indices_set].loc[(df.sex == True) & (df.income == True)].shape[0] > FP_size:
         # Remove record from dataframe
-        df.drop(FP.index[i], inplace=True)
+        df = df.drop(FP.index[i])
         # Remove record's index from set indices
         indices_set = np.delete(indices_set, np.argwhere(indices_set == FP.index[i]))
         i += 1
@@ -182,4 +197,22 @@ def preferential_sampling(df, indices_set, d_x_set, d_y_set, algorithm):
     nd_x_set = df.loc[indices_set].drop('income', axis=1)
     nd_y_set = df.loc[indices_set, 'income']
 
-    return df, indices_set, nd_x_set, nd_y_set, clf
+    # After preferential sampling, calculate chance of having income >50K given each sex and discrimination
+    print("After preferential sampling:")
+    calc_dscrmn(df, indices_set)
+
+    return nd_x_set, nd_y_set, clf
+
+
+def calc_dscrmn(df, indices_set):
+    # Chance of having income >50K given being male for set
+    highincome_male_prob = df.loc[indices_set].loc[(df.sex == True) & (df.income == True)].shape[0] / \
+                                df.loc[indices_set].loc[df.sex == True].shape[0]
+    print("Chance of having income >50K given being male: " + str("{:.8f}".format(highincome_male_prob)))
+    # Chance of having income >50K given being female for set
+    highincome_female_prob = df.loc[indices_set].loc[(df.sex == False) & (df.income == True)].shape[0] / \
+                                  df.loc[indices_set].loc[df.sex == False].shape[0]
+    print("Chance of having income >50K given being female: " + str("{:.8f}".format(highincome_female_prob)))
+    # Discrimination for set
+    discr = highincome_male_prob - highincome_female_prob
+    print("Statistical parity discrimination: " + str("{:.8f}".format(discr)))
