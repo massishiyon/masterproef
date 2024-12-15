@@ -282,6 +282,25 @@ print("Accuracy of the massaged (GNB ranker) non-discriminatory GNB model on the
 print("Discrimination of the massaged (GNB ranker) non-discriminatory GNB model on the PS (GNB ranker) non-discriminatory test set: " +
       str(gnb_nd_mas_gnb_nd_ps_gnb_dscrm))
 #       PS (GNB ranker) non-discriminatory model
+print("Accuracy of the PS (GNB ranker) non-discriminatory GNB model on the PS (GNB ranker) non-discriminatory test set: " +
+      str(gnb_nd_ps_gnb_nd_ps_gnb_acc))
+print("Discrimination of the PS (GNB ranker) non-discriminatory GNB model on the PS (GNB ranker) non-discriminatory test set: " +
+      str(gnb_nd_ps_gnb_nd_ps_gnb_dscrm))
+#   Massaged (GNB ranker) non-discriminatory test set
+#       Discriminatory model
+print("Accuracy of the discriminatory GNB model on the Massaged (GNB ranker) non-discriminatory test set: " + str(gnb_d_nd_mas_gnb_acc))
+print(
+    "Discrimination of the discriminatory GNB model on the Massaged (GNB ranker) non-discriminatory test set: " + str(gnb_d_nd_mas_gnb_dscrm))
+#       Massaged (GNB ranker) non-discriminatory model
+print("Accuracy of the massaged (GNB ranker) non-discriminatory GNB model on the Massaged (GNB ranker) non-discriminatory test set: " +
+      str(gnb_nd_mas_gnb_nd_mas_gnb_acc))
+print("Discrimination of the massaged (GNB ranker) non-discriminatory GNB model on the Massaged (GNB ranker) non-discriminatory test set: " +
+      str(gnb_nd_mas_gnb_nd_mas_gnb_dscrm))
+#       PS (GNB ranker) non-discriminatory model
+print("Accuracy of the PS (GNB ranker) non-discriminatory GNB model on the Massaged (GNB ranker) non-discriminatory test set: " +
+      str(gnb_nd_ps_gnb_nd_mas_gnb_acc))
+print("Discrimination of the PS (GNB ranker) non-discriminatory GNB model on the Massaged (GNB ranker) non-discriminatory test set: " +
+      str(gnb_nd_ps_gnb_nd_mas_gnb_dscrm))
 
 #%% Decision tree classifier
 # Train model on original discriminatory training set: perform 5-fold cross validation grid search to find the
@@ -443,19 +462,18 @@ print("Discrimination of the non-discriminatory KNN model on the simulated non-d
 plt.rcParams['axes.labelsize'] = 16
 #plt.rcParams['axes.titlesize'] = 12
 
-# Figure accuracies & discriminations of models on discriminatory test set
+# Visualize comparison of accuracies & discriminations of the discriminatory and a non-discriminatory model on
+# discriminatory test set
 fig, axes = plt.subplots(1, 2, figsize=(12, 6))
-
-# Subplot accuracies
+#   Subplot accuracies
 acc_d_d = [dt_d_d_acc, knn_d_d_acc, gnb_d_d_acc]
-acc_nd_nd = [dt_nd_d_acc, knn_nd_d_acc, gnb_nd_d_acc]
+acc_nd_d = [dt_nd_d_acc, knn_nd_d_acc, gnb_nd_d_acc]
 index = ['Decision tree', 'K-nearest neighbors', 'Gaussian Naive Bayes']
 (pd.DataFrame({'Discriminatory model': acc_d_d,
-               'Non-discriminatory model': acc_nd_nd}, index)
+               'Non-discriminatory model': acc_nd_d}, index)
  .plot.bar(yticks=[x / 10.0 for x in range(0, 11)], ylim=(0, 1), xlabel='Classification algorithm',
            ylabel='Accuracy (%)', rot=0, ax=axes[0]))
-
-# Subplot discriminations
+#   Subplot discriminations
 dscrm_d_d = [dt_d_d_dscrm, knn_d_d_dscrm, gnb_d_d_dscrm]
 dscrm_nd_d = [dt_nd_d_dscrm, knn_nd_d_dscrm, gnb_nd_d_dscrm]
 index = ['Decision tree', 'K-nearest neighbors', 'Gaussian Naive Bayes']
@@ -471,29 +489,107 @@ axes[1].tick_params(axis='y', direction='in', right=True)
 plt.tight_layout()
 plt.show()
 
-# Figure accuracies & discriminations of models on non-discriminatory test set
+# For each non-discriminatory model and each non-discriminatory test set, visualize comparisons of
+# accuracies & discriminations of the discriminatory model vs the non-discriminatory model on the non-discriminatory
+# test set
+#   PS (GNB ranker) ND test set
+#       Discriminatory model vs massaged (GNB ranker) ND model
 fig, axes = plt.subplots(1, 2, figsize=(12, 6))
-
-# Subplot accuracies
-acc_d_nd = [dt_d_nd_acc, knn_d_nd_acc, gnb_d_nd_ps_gnb_acc]
-acc_nd_nd = [dt_nd_nd_acc, knn_nd_nd_acc, gnb_nd_mas_gnb_nd_ps_gnb_acc]
+#           Subplot accuracies
+acc_d_nd_ps_gnb = [dt_d_nd_acc, knn_d_nd_acc, gnb_d_nd_ps_gnb_acc]
+acc_nd_mas_gnb_nd_ps_gnb = [dt_nd_nd_acc, knn_nd_nd_acc, gnb_nd_mas_gnb_nd_ps_gnb_acc]
 index = ['Decision tree', 'K-nearest neighbors', 'Gaussian Naive Bayes']
-(pd.DataFrame({'Discriminatory model': acc_d_nd,
-               'Non-discriminatory model': acc_nd_nd}, index)
+(pd.DataFrame({'Discriminatory model': acc_d_nd_ps_gnb,
+               'Non-discriminatory model': acc_nd_mas_gnb_nd_ps_gnb}, index)
  .plot.bar(yticks=[x / 10.0 for x in range(0, 11)], ylim=(0, 1), xlabel='Classification algorithm',
            ylabel='Accuracy (%)', rot=0, ax=axes[0]))
-
-# Subplot discriminations
-dscrm_d_nd = [dt_d_nd_dscrm, knn_d_nd_dscrm, gnb_d_nd_ps_gnb_dscrm]
-dscrm_nd_nd = [dt_nd_nd_dscrm, knn_nd_nd_dscrm, gnb_nd_mas_gnb_nd_ps_gnb_dscrm]
+#           Subplot discriminations
+dscrm_d_nd_ps_gnb = [dt_d_nd_dscrm, knn_d_nd_dscrm, gnb_d_nd_ps_gnb_dscrm]
+dscrm_nd_mas_gnb_nd_ps_gnb = [dt_nd_nd_dscrm, knn_nd_nd_dscrm, gnb_nd_mas_gnb_nd_ps_gnb_dscrm]
 index = ['Decision tree', 'K-nearest neighbors', 'Gaussian Naive Bayes']
-(pd.DataFrame({'Discriminatory model': dscrm_d_nd,
-               'Non-discriminatory model': dscrm_nd_nd}, index)
+(pd.DataFrame({'Discriminatory model': dscrm_d_nd_ps_gnb,
+               'Non-discriminatory model': dscrm_nd_mas_gnb_nd_ps_gnb}, index)
  .plot.bar(yticks=[x / 10.0 for x in range(0, 11)], ylim=(0, 1), xlabel='Classification algorithm',
            ylabel='Discrimination (%)', rot=0, ax=axes[1]))
 
-fig.suptitle('Accuracy and discrimination of the discriminatory and non-discriminatory\n'
-             'model for each algorithm on the non-discriminatory test set')
+fig.suptitle('Accuracy and discrimination of the discriminatory and massaged (GNB ranker) non-discriminatory\n'
+             'model for each algorithm on the PS (GNB ranker) non-discriminatory test set')
+axes[0].tick_params(axis='y', direction='in', right=True)
+axes[1].tick_params(axis='y', direction='in', right=True)
+plt.tight_layout()
+plt.show()
+#       Discriminatory model vs PS (GNB ranker) ND model
+fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+#           Subplot accuracies
+acc_d_nd_ps_gnb = [dt_d_nd_acc, knn_d_nd_acc, gnb_d_nd_ps_gnb_acc]
+acc_nd_ps_gnb_nd_ps_gnb = [dt_nd_nd_acc, knn_nd_nd_acc, gnb_nd_ps_gnb_nd_ps_gnb_acc]
+index = ['Decision tree', 'K-nearest neighbors', 'Gaussian Naive Bayes']
+(pd.DataFrame({'Discriminatory model': acc_d_nd_ps_gnb,
+               'Non-discriminatory model': acc_nd_ps_gnb_nd_ps_gnb}, index)
+ .plot.bar(yticks=[x / 10.0 for x in range(0, 11)], ylim=(0, 1), xlabel='Classification algorithm',
+           ylabel='Accuracy (%)', rot=0, ax=axes[0]))
+#           Subplot discriminations
+dscrm_d_nd_ps_gnb = [dt_d_nd_dscrm, knn_d_nd_dscrm, gnb_d_nd_ps_gnb_dscrm]
+dscrm_nd_ps_gnb_nd_ps_gnb = [dt_nd_nd_dscrm, knn_nd_nd_dscrm, gnb_nd_ps_gnb_nd_ps_gnb_dscrm]
+index = ['Decision tree', 'K-nearest neighbors', 'Gaussian Naive Bayes']
+(pd.DataFrame({'Discriminatory model': dscrm_d_nd_ps_gnb,
+               'Non-discriminatory model': dscrm_nd_ps_gnb_nd_ps_gnb}, index)
+ .plot.bar(yticks=[x / 10.0 for x in range(0, 11)], ylim=(0, 1), xlabel='Classification algorithm',
+           ylabel='Discrimination (%)', rot=0, ax=axes[1]))
+
+fig.suptitle('Accuracy and discrimination of the discriminatory and PS (GNB ranker) non-discriminatory\n'
+             'model for each algorithm on the PS (GNB ranker) non-discriminatory test set')
+axes[0].tick_params(axis='y', direction='in', right=True)
+axes[1].tick_params(axis='y', direction='in', right=True)
+plt.tight_layout()
+plt.show()
+#   Massaged (GNB ranker) ND test set
+#       Discriminatory model vs massaged (GNB ranker) ND model
+fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+#           Subplot accuracies
+acc_d_nd_mas_gnb = [dt_d_nd_acc, knn_d_nd_acc, gnb_d_nd_mas_gnb_acc]
+acc_nd_mas_gnb_nd_mas_gnb = [dt_nd_nd_acc, knn_nd_nd_acc, gnb_nd_mas_gnb_nd_mas_gnb_acc]
+index = ['Decision tree', 'K-nearest neighbors', 'Gaussian Naive Bayes']
+(pd.DataFrame({'Discriminatory model': acc_d_nd_mas_gnb,
+               'Non-discriminatory model': acc_nd_mas_gnb_nd_mas_gnb}, index)
+ .plot.bar(yticks=[x / 10.0 for x in range(0, 11)], ylim=(0, 1), xlabel='Classification algorithm',
+           ylabel='Accuracy (%)', rot=0, ax=axes[0]))
+#           Subplot discriminations
+dscrm_d_nd_mas_gnb = [dt_d_nd_dscrm, knn_d_nd_dscrm, gnb_d_nd_mas_gnb_dscrm]
+dscrm_nd_mas_gnb_nd_mas_gnb = [dt_nd_nd_dscrm, knn_nd_nd_dscrm, gnb_nd_mas_gnb_nd_mas_gnb_dscrm]
+index = ['Decision tree', 'K-nearest neighbors', 'Gaussian Naive Bayes']
+(pd.DataFrame({'Discriminatory model': dscrm_d_nd_mas_gnb,
+               'Non-discriminatory model': dscrm_nd_mas_gnb_nd_mas_gnb}, index)
+ .plot.bar(yticks=[x / 10.0 for x in range(0, 11)], ylim=(0, 1), xlabel='Classification algorithm',
+           ylabel='Discrimination (%)', rot=0, ax=axes[1]))
+
+fig.suptitle('Accuracy and discrimination of the discriminatory and massaged (GNB ranker) non-discriminatory\n'
+             'model for each algorithm on the massaged (GNB ranker) non-discriminatory test set')
+axes[0].tick_params(axis='y', direction='in', right=True)
+axes[1].tick_params(axis='y', direction='in', right=True)
+plt.tight_layout()
+plt.show()
+#       Discriminatory model vs PS (GNB ranker) ND model
+fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+#           Subplot accuracies
+acc_d_nd_mas_gnb = [dt_d_nd_acc, knn_d_nd_acc, gnb_d_nd_mas_gnb_acc]
+acc_nd_ps_gnb_nd_mas_gnb = [dt_nd_nd_acc, knn_nd_nd_acc, gnb_nd_ps_gnb_nd_mas_gnb_acc]
+index = ['Decision tree', 'K-nearest neighbors', 'Gaussian Naive Bayes']
+(pd.DataFrame({'Discriminatory model': acc_d_nd_mas_gnb,
+               'Non-discriminatory model': acc_nd_ps_gnb_nd_mas_gnb}, index)
+ .plot.bar(yticks=[x / 10.0 for x in range(0, 11)], ylim=(0, 1), xlabel='Classification algorithm',
+           ylabel='Accuracy (%)', rot=0, ax=axes[0]))
+#           Subplot discriminations
+dscrm_d_nd_mas_gnb = [dt_d_nd_dscrm, knn_d_nd_dscrm, gnb_d_nd_mas_gnb_dscrm]
+dscrm_nd_ps_gnb_nd_mas_gnb = [dt_nd_nd_dscrm, knn_nd_nd_dscrm, gnb_nd_ps_gnb_nd_mas_gnb_dscrm]
+index = ['Decision tree', 'K-nearest neighbors', 'Gaussian Naive Bayes']
+(pd.DataFrame({'Discriminatory model': dscrm_d_nd_mas_gnb,
+               'Non-discriminatory model': dscrm_nd_ps_gnb_nd_mas_gnb}, index)
+ .plot.bar(yticks=[x / 10.0 for x in range(0, 11)], ylim=(0, 1), xlabel='Classification algorithm',
+           ylabel='Discrimination (%)', rot=0, ax=axes[1]))
+
+fig.suptitle('Accuracy and discrimination of the discriminatory and PS (GNB ranker) non-discriminatory\n'
+             'model for each algorithm on the massaged (GNB ranker) non-discriminatory test set')
 axes[0].tick_params(axis='y', direction='in', right=True)
 axes[1].tick_params(axis='y', direction='in', right=True)
 plt.tight_layout()
@@ -501,10 +597,9 @@ plt.show()
 
 """
 #%% Visualizing results Nederlands (zelfde grafieken)
-# Figure accuracies & discriminations of models on discriminatory test set
+# Visualize accuracies & discriminations of models on discriminatory test set
 fig, axes = plt.subplots(1, 2, figsize=(12, 6))
-
-# Subplot accuracies
+#   Subplot accuracies
 acc_d_d = [dt_d_d_acc, knn_d_d_acc, gnb_d_d_acc]
 acc_nd_d = [dt_nd_d_acc, knn_nd_d_acc, gnb_nd_d_acc]
 index = ['Decision tree', 'K-nearest neighbors', 'Gaussian Naive Bayes']
@@ -512,8 +607,7 @@ index = ['Decision tree', 'K-nearest neighbors', 'Gaussian Naive Bayes']
                'Non-discriminerend model': acc_nd_d}, index)
  .plot.bar(yticks=[x / 10.0 for x in range(0, 11)], ylim=(0, 1), xlabel='Classificatiealgoritme',
            ylabel='Accuraatheid (%)', rot=0, ax=axes[0]))
-
-# Subplot discriminations
+#   Subplot discriminations
 dscrm_d_d = [dt_d_d_dscrm, knn_d_d_dscrm, gnb_d_d_dscrm]
 dscrm_nd_d = [dt_nd_d_dscrm, knn_nd_d_dscrm, gnb_nd_d_dscrm]
 index = ['Decision tree', 'K-nearest neighbors', 'Gaussian Naive Bayes']
@@ -529,10 +623,9 @@ axes[1].tick_params(axis='y', direction='in', right=True)
 plt.tight_layout()
 plt.show()
 
-# Figure accuracies & discriminations of models on non-discriminatory test set
+# Visualize accuracies & discriminations of models on non-discriminatory test set
 fig, axes = plt.subplots(1, 2, figsize=(12, 6))
-
-# Subplot accuracies
+#   Subplot accuracies
 acc_d_nd = [dt_d_nd_acc, knn_d_nd_acc, gnb_d_nd_acc]
 acc_nd_nd = [dt_nd_nd_acc, knn_nd_nd_acc, gnb_nd_nd_acc]
 index = ['Decision tree', 'K-nearest neighbors', 'Gaussian Naive Bayes']
@@ -540,8 +633,7 @@ index = ['Decision tree', 'K-nearest neighbors', 'Gaussian Naive Bayes']
                'Non-discriminerend model': acc_nd_nd}, index)
  .plot.bar(yticks=[x / 10.0 for x in range(0, 11)], ylim=(0, 1), xlabel='Classificatiealgoritme',
            ylabel='Accuraatheid (%)', rot=0, ax=axes[0]))
-
-# Subplot discriminations
+#   Subplot discriminations
 dscrm_d_nd = [dt_d_nd_dscrm, knn_d_nd_dscrm, gnb_d_nd_dscrm]
 dscrm_nd_nd = [dt_nd_nd_dscrm, knn_nd_nd_dscrm, gnb_nd_nd_dscrm]
 index = ['Decision tree', 'K-nearest neighbors', 'Gaussian Naive Bayes']
