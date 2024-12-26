@@ -147,315 +147,37 @@ nd_mas_gnb_x_test, nd_mas_gnb_y_test = tch.massaging(df, indices_test, d_x_test,
 print("Eliminating discrimination in training set")
 # The first time a classifier of a certain algorithm is learned on the training set, it needs to be returned for
 # later use
-nd_mas_gnb_x_train, nd_mas_gnb_y_train, gnb_d_clf = tch.massaging(df, indices_train, d_x_train, d_y_train, "GNB")
 nd_ps_gnb_x_train, nd_ps_gnb_y_train = tch.preferential_sampling(df, indices_train, d_x_train, d_y_train, "GNB")[0:2]
+nd_mas_gnb_x_train, nd_mas_gnb_y_train, gnb_d_clf = tch.massaging(df, indices_train, d_x_train, d_y_train, "GNB")
 
 #%% Naive Bayes classifier
-# Discriminatory model already trained
-# Train non-discriminatory models
-# Train model on the massaged (with GNB ranker) non-discriminatory training set
-param_grid = {
-    'var_smoothing': np.logspace(0, -7)
-}
-gridsearch = GridSearchCV(GaussianNB(), param_grid, n_jobs=-1, verbose=1)
-gridsearch.fit(nd_mas_gnb_x_train, nd_mas_gnb_y_train)
-
-# Results of grid search
-print(gridsearch.best_params_)
-print(gridsearch.best_score_)
-gnb_nd_mas_gnb_clf = gridsearch.best_estimator_
-
-# Train model on the PS (with GNB ranker) non-discriminatory training set
-gridsearch.fit(nd_ps_gnb_x_train, nd_ps_gnb_y_train)
-
-# Results of grid search
-print(gridsearch.best_params_)
-print(gridsearch.best_score_)
-gnb_nd_ps_gnb_clf = gridsearch.best_estimator_
-
-# Compute accuracies (always compare discriminatory model vs any other model for a given set in graphs)
-#   Discriminatory test set (only for proving that accuracy will go down on this set, no need to use every model)
-#       Discriminatory model
-gnb_d_d_preds = gnb_d_clf.predict(d_x_test)
-gnb_d_d_acc = accuracy_score(d_y_test, gnb_d_d_preds)
-#       Massaged (GNB ranker) non-discriminatory model
-gnb_nd_d_preds = gnb_nd_mas_gnb_clf.predict(d_x_test)
-gnb_nd_d_acc = accuracy_score(d_y_test, gnb_nd_d_preds)
-#   PS (GNB ranker) non-discriminatory test set (proving that accuracy can go up)
-#       Discriminatory model
-gnb_d_nd_ps_gnb_preds = gnb_d_clf.predict(nd_ps_gnb_x_test)
-gnb_d_nd_ps_gnb_acc = accuracy_score(nd_ps_gnb_y_test, gnb_d_nd_ps_gnb_preds)
-#       Massaged (GNB ranker) non-discriminatory model
-gnb_nd_mas_gnb_nd_ps_gnb_preds = gnb_nd_mas_gnb_clf.predict(nd_ps_gnb_x_test)
-gnb_nd_mas_gnb_nd_ps_gnb_acc = accuracy_score(nd_ps_gnb_y_test, gnb_nd_mas_gnb_nd_ps_gnb_preds)
-#       PS (GNB ranker) non-discriminatory model
-gnb_nd_ps_gnb_nd_ps_gnb_preds = gnb_nd_ps_gnb_clf.predict(nd_ps_gnb_x_test)
-gnb_nd_ps_gnb_nd_ps_gnb_acc = accuracy_score(nd_ps_gnb_y_test, gnb_nd_ps_gnb_nd_ps_gnb_preds)
-#   Massaged (GNB ranker) non-discriminatory test set
-#       Discriminatory model
-gnb_d_nd_mas_gnb_preds = gnb_d_clf.predict(nd_mas_gnb_x_test)
-gnb_d_nd_mas_gnb_acc = accuracy_score(nd_mas_gnb_y_test, gnb_d_nd_mas_gnb_preds)
-#       Massaged (GNB ranker) non-discrminatory model
-gnb_nd_mas_gnb_nd_mas_gnb_preds = gnb_nd_mas_gnb_clf.predict(nd_ps_gnb_x_test)
-gnb_nd_mas_gnb_nd_mas_gnb_acc = accuracy_score(nd_ps_gnb_y_test, gnb_nd_mas_gnb_nd_mas_gnb_preds)
-#       PS (GNB ranker) non-discriminatory model
-gnb_nd_ps_gnb_nd_mas_gnb_preds = gnb_nd_ps_gnb_clf.predict(nd_ps_gnb_x_test)
-gnb_nd_ps_gnb_nd_mas_gnb_acc = accuracy_score(nd_ps_gnb_y_test, gnb_nd_ps_gnb_nd_mas_gnb_preds)
-
-# Compute statistical parity discriminations
-#   Discriminatory test set (again proving the hypothesis from Kamiran & Calders)
-#       Discriminatory model
-test_preds = pd.DataFrame(d_x_test.loc[:, 'sex'])
-test_preds.loc[:, 'prediction'] = gnb_d_d_preds
-gnb_d_d_dscrm = (test_preds.loc[(test_preds.sex == True) & (test_preds.prediction == True)].shape[0] /
-                 test_preds.loc[test_preds.sex == True].shape[0]) - (
-                        test_preds.loc[(test_preds.sex == False) & (test_preds.prediction == True)].shape[0] /
-                        test_preds.loc[test_preds.sex == False].shape[0])
-#       Massaged (GNB ranker) non-discriminatory model
-test_preds = pd.DataFrame(d_x_test.loc[:, 'sex'])
-test_preds.loc[:, 'prediction'] = gnb_nd_d_preds
-gnb_nd_d_dscrm = (test_preds.loc[(test_preds.sex == True) & (test_preds.prediction == True)].shape[0] /
-                  test_preds.loc[test_preds.sex == True].shape[0]) - (
-                         test_preds.loc[(test_preds.sex == False) & (test_preds.prediction == True)].shape[0] /
-                         test_preds.loc[test_preds.sex == False].shape[0])
-#   PS (GNB ranker) non-discriminatory test set (proving own hypothesis)
-#       Discriminatory model
-test_preds = pd.DataFrame(nd_ps_gnb_x_test.loc[:, 'sex'])
-test_preds.loc[:, 'prediction'] = gnb_d_nd_ps_gnb_preds
-gnb_d_nd_ps_gnb_dscrm = (test_preds.loc[(test_preds.sex == True) & (test_preds.prediction == True)].shape[0] /
-                         test_preds.loc[test_preds.sex == True].shape[0]) - (
-                                test_preds.loc[(test_preds.sex == False) & (test_preds.prediction == True)].shape[0] /
-                                test_preds.loc[test_preds.sex == False].shape[0])
-#       Massaged (GNB ranker) non-discriminatory model
-test_preds = pd.DataFrame(nd_ps_gnb_x_test.loc[:, 'sex'])
-test_preds.loc[:, 'prediction'] = gnb_nd_mas_gnb_nd_ps_gnb_preds
-gnb_nd_mas_gnb_nd_ps_gnb_dscrm = (test_preds.loc[(test_preds.sex == True) & (test_preds.prediction == True)].shape[0] /
-                                  test_preds.loc[test_preds.sex == True].shape[0]) - (
-                                         test_preds.loc[(test_preds.sex == False) & (test_preds.prediction == True)]
-                                         .shape[0] / test_preds.loc[test_preds.sex == False].shape[0])
-#       PS (GNB ranker) non-discriminatory model
-test_preds = pd.DataFrame(nd_ps_gnb_x_test.loc[:, 'sex'])
-test_preds.loc[:, 'prediction'] = gnb_nd_ps_gnb_nd_ps_gnb_preds
-gnb_nd_ps_gnb_nd_ps_gnb_dscrm = (test_preds.loc[(test_preds.sex == True) & (test_preds.prediction == True)].shape[0] /
-                                 test_preds.loc[test_preds.sex == True].shape[0]) - (
-                                        test_preds.loc[(test_preds.sex == False) & (test_preds.prediction == True)]
-                                        .shape[0] / test_preds.loc[test_preds.sex == False].shape[0])
-#   Massaged (GNB ranker) non-discriminatory test set (proving own hypothesis)
-#       Discriminatory model
-test_preds = pd.DataFrame(nd_mas_gnb_x_test.loc[:, 'sex'])
-test_preds.loc[:, 'prediction'] = gnb_d_nd_mas_gnb_preds
-gnb_d_nd_mas_gnb_dscrm = (test_preds.loc[(test_preds.sex == True) & (test_preds.prediction == True)].shape[0] /
-                          test_preds.loc[test_preds.sex == True].shape[0]) - (
-                                 test_preds.loc[(test_preds.sex == False) & (test_preds.prediction == True)].shape[0] /
-                                 test_preds.loc[test_preds.sex == False].shape[0])
-#       Massaged (GNB ranker) non-discriminatory model
-test_preds = pd.DataFrame(nd_mas_gnb_x_test.loc[:, 'sex'])
-test_preds.loc[:, 'prediction'] = gnb_nd_mas_gnb_nd_mas_gnb_preds
-gnb_nd_mas_gnb_nd_mas_gnb_dscrm = (test_preds.loc[(test_preds.sex == True) & (test_preds.prediction == True)].shape[0] /
-                                   test_preds.loc[test_preds.sex == True].shape[0]) - (
-                                          test_preds.loc[(test_preds.sex == False) & (test_preds.prediction == True)]
-                                          .shape[0] / test_preds.loc[test_preds.sex == False].shape[0])
-#       PS (GNB ranker) non-discriminatory model
-test_preds = pd.DataFrame(nd_mas_gnb_x_test.loc[:, 'sex'])
-test_preds.loc[:, 'prediction'] = gnb_nd_ps_gnb_nd_mas_gnb_preds
-gnb_nd_ps_gnb_nd_mas_gnb_dscrm = (test_preds.loc[(test_preds.sex == True) & (test_preds.prediction == True)].shape[0] /
-                                  test_preds.loc[test_preds.sex == True].shape[0]) - (
-                                         test_preds.loc[(test_preds.sex == False) & (test_preds.prediction == True)]
-                                         .shape[0] / test_preds.loc[test_preds.sex == False].shape[0])
-
-# Print accuracies & discriminations
-#   Discriminatory test set
-#       Discriminatory model
-print("Accuracy of the discriminatory GNB model on the discriminatory test set: " + str(gnb_d_d_acc))
-print("Discrimination of the discriminatory GNB model on the discriminatory test set: " + str(gnb_d_d_dscrm))
-#       Massaged (GNB ranker) non-discriminatory model
-print("Accuracy of the massaged (GNB ranker) non-discriminatory GNB model on the discriminatory test set: " + str(gnb_nd_d_acc))
-print("Discrimination of the massaged (GNB ranker) non-discriminatory GNB model on the discriminatory test set: " + str(gnb_nd_d_dscrm))
-#   PS (GNB ranker) non-discriminatory test set
-#       Discriminatory model
-print("Accuracy of the discriminatory GNB model on the PS (GNB ranker) non-discriminatory test set: " + str(gnb_d_nd_ps_gnb_acc))
-print(
-    "Discrimination of the discriminatory GNB model on the PS (GNB ranker) non-discriminatory test set: " + str(gnb_d_nd_ps_gnb_dscrm))
-#       Massaged (GNB ranker) non-discriminatory model
-print("Accuracy of the massaged (GNB ranker) non-discriminatory GNB model on the PS (GNB ranker) non-discriminatory test set: " +
-      str(gnb_nd_mas_gnb_nd_ps_gnb_acc))
-print("Discrimination of the massaged (GNB ranker) non-discriminatory GNB model on the PS (GNB ranker) non-discriminatory test set: " +
-      str(gnb_nd_mas_gnb_nd_ps_gnb_dscrm))
-#       PS (GNB ranker) non-discriminatory model
-print("Accuracy of the PS (GNB ranker) non-discriminatory GNB model on the PS (GNB ranker) non-discriminatory test set: " +
-      str(gnb_nd_ps_gnb_nd_ps_gnb_acc))
-print("Discrimination of the PS (GNB ranker) non-discriminatory GNB model on the PS (GNB ranker) non-discriminatory test set: " +
-      str(gnb_nd_ps_gnb_nd_ps_gnb_dscrm))
-#   Massaged (GNB ranker) non-discriminatory test set
-#       Discriminatory model
-print("Accuracy of the discriminatory GNB model on the Massaged (GNB ranker) non-discriminatory test set: " + str(gnb_d_nd_mas_gnb_acc))
-print(
-    "Discrimination of the discriminatory GNB model on the Massaged (GNB ranker) non-discriminatory test set: " + str(gnb_d_nd_mas_gnb_dscrm))
-#       Massaged (GNB ranker) non-discriminatory model
-print("Accuracy of the massaged (GNB ranker) non-discriminatory GNB model on the Massaged (GNB ranker) non-discriminatory test set: " +
-      str(gnb_nd_mas_gnb_nd_mas_gnb_acc))
-print("Discrimination of the massaged (GNB ranker) non-discriminatory GNB model on the Massaged (GNB ranker) non-discriminatory test set: " +
-      str(gnb_nd_mas_gnb_nd_mas_gnb_dscrm))
-#       PS (GNB ranker) non-discriminatory model
-print("Accuracy of the PS (GNB ranker) non-discriminatory GNB model on the Massaged (GNB ranker) non-discriminatory test set: " +
-      str(gnb_nd_ps_gnb_nd_mas_gnb_acc))
-print("Discrimination of the PS (GNB ranker) non-discriminatory GNB model on the Massaged (GNB ranker) non-discriminatory test set: " +
-      str(gnb_nd_ps_gnb_nd_mas_gnb_dscrm))
+(gnb_d_d_acc, gnb_nd_d_acc, gnb_d_nd_ps_gnb_acc, gnb_nd_mas_gnb_nd_ps_gnb_acc, gnb_nd_ps_gnb_nd_ps_gnb_acc,
+ gnb_d_nd_mas_gnb_acc, gnb_nd_mas_gnb_nd_mas_gnb_acc, gnb_nd_ps_gnb_nd_mas_gnb_acc, gnb_d_d_dscrm, gnb_nd_d_dscrm,
+ gnb_d_nd_ps_gnb_dscrm, gnb_nd_mas_gnb_nd_ps_gnb_dscrm, gnb_nd_ps_gnb_nd_ps_gnb_dscrm, gnb_d_nd_mas_gnb_dscrm,
+ gnb_nd_mas_gnb_nd_mas_gnb_dscrm, gnb_nd_ps_gnb_nd_mas_gnb_dscrm) = (
+    fnc.train_and_test_clf(d_x_train, d_y_train, d_x_test, d_y_test, nd_mas_gnb_x_train, nd_mas_gnb_y_train,
+                           nd_mas_gnb_x_test, nd_mas_gnb_y_test, nd_ps_gnb_x_train, nd_ps_gnb_y_train, nd_ps_gnb_x_test,
+                           nd_ps_gnb_y_test, "GNB", gnb_d_clf))
 
 #%% Decision tree classifier
-# Train model on original discriminatory training set: perform 5-fold cross validation grid search to find the
-# optimal hyperparameters
-param_grid = {
-    'max_depth': [None, 10, 20, 30, 40],
-    'min_samples_split': [20, 50, 100, 150],
-    'min_samples_leaf': [10, 25, 50, 75],
-    'max_features': [None, 'sqrt', 'log2'],
-    'criterion': ['gini', 'entropy'],
-}
-gridsearch = GridSearchCV(DecisionTreeClassifier(random_state=0), param_grid, n_jobs=-1, verbose=1)
-gridsearch.fit(d_x_train, d_y_train)
-
-# Results of grid search
-print(gridsearch.best_params_)
-print(gridsearch.best_score_)
-dt_d_clf = gridsearch.best_estimator_
-
-# Train model on massaged training set: Perform 5-fold cross validation grid search to find the optimal hyperparameters
-gridsearch.fit(nd_mas_gnb_x_train, nd_mas_gnb_y_train)
-
-# Results of grid search
-print(gridsearch.best_params_)
-print(gridsearch.best_score_)
-dt_nd_clf = gridsearch.best_estimator_
-
-# Compute accuracy of both models on discriminatory test set
-dt_d_d_preds = dt_d_clf.predict(d_x_test)
-dt_d_d_acc = accuracy_score(d_y_test, dt_d_d_preds)
-dt_nd_d_preds = dt_nd_clf.predict(d_x_test)
-dt_nd_d_acc = accuracy_score(d_y_test, dt_nd_d_preds)
-
-# Compute accuracy of both models on non-discriminatory test set
-dt_d_nd_preds = dt_d_clf.predict(nd_ps_gnb_x_test)
-dt_d_nd_acc = accuracy_score(nd_ps_gnb_y_test, dt_d_nd_preds)
-dt_nd_nd_preds = dt_nd_clf.predict(nd_ps_gnb_x_test)
-dt_nd_nd_acc = accuracy_score(nd_ps_gnb_y_test, dt_nd_nd_preds)
-
-# Compute statistical parity discrimination of both models on discriminatory test set
-test_preds = pd.DataFrame(d_x_test.loc[:, 'sex'])
-test_preds.loc[:, 'prediction'] = dt_d_d_preds
-dt_d_d_dscrm = (test_preds.loc[(test_preds.sex == True) & (test_preds.prediction == True)].shape[0] /
-                test_preds.loc[test_preds.sex == True].shape[0]) - (
-                       test_preds.loc[(test_preds.sex == False) & (test_preds.prediction == True)].shape[0] /
-                       test_preds.loc[test_preds.sex == False].shape[0])
-
-test_preds = pd.DataFrame(d_x_test.loc[:, 'sex'])
-test_preds.loc[:, 'prediction'] = dt_nd_d_preds
-dt_nd_d_dscrm = (test_preds.loc[(test_preds.sex == True) & (test_preds.prediction == True)].shape[0] /
-                 test_preds.loc[test_preds.sex == True].shape[0]) - (
-                        test_preds.loc[(test_preds.sex == False) & (test_preds.prediction == True)].shape[0] /
-                        test_preds.loc[test_preds.sex == False].shape[0])
-
-# Compute statistical parity discrimination of both models on non-discriminatory test set
-test_preds = pd.DataFrame(nd_ps_gnb_x_test.loc[:, 'sex'])
-test_preds.loc[:, 'prediction'] = dt_d_nd_preds
-dt_d_nd_dscrm = (test_preds.loc[(test_preds.sex == True) & (test_preds.prediction == True)].shape[0] /
-                 test_preds.loc[test_preds.sex == True].shape[0]) - (
-                        test_preds.loc[(test_preds.sex == False) & (test_preds.prediction == True)].shape[0] /
-                        test_preds.loc[test_preds.sex == False].shape[0])
-
-test_preds = pd.DataFrame(nd_ps_gnb_x_test.loc[:, 'sex'])
-test_preds.loc[:, 'prediction'] = dt_nd_nd_preds
-dt_nd_nd_dscrm = (test_preds.loc[(test_preds.sex == True) & (test_preds.prediction == True)].shape[0] /
-                  test_preds.loc[test_preds.sex == True].shape[0]) - (
-                         test_preds.loc[(test_preds.sex == False) & (test_preds.prediction == True)].shape[0] /
-                         test_preds.loc[test_preds.sex == False].shape[0])
-
-# Print accuracies & discriminations
-print("Accuracy of the base model on the test set: " + str(dt_d_d_acc))
-print("Discrimination of the base model on the test set: " + str(dt_d_d_dscrm))
-print("Accuracy of the non-discriminatory model on the test set: " + str(dt_nd_d_acc))
-print("Discrimination of the non-discriminatory model on the test set: " + str(dt_nd_d_dscrm))
-print("Accuracy of the base model on the simulated non-discriminatory test set: " + str(dt_d_nd_acc))
-print("Discrimination of the base model on the simulated non-discriminatory test set: " + str(dt_d_nd_dscrm))
-print("Accuracy of the non-discriminating model on the simulated non-discriminatory test set: " + str(dt_nd_nd_acc))
-print(
-    "Discrimination of the non-discriminatory model on the simulated non-discriminatory test set: " + str(
-        dt_nd_nd_dscrm))
+(dt_d_d_acc, dt_nd_d_acc, dt_d_nd_ps_gnb_acc, dt_nd_mas_gnb_nd_ps_gnb_acc, dt_nd_ps_gnb_nd_ps_gnb_acc,
+ dt_d_nd_mas_gnb_acc, dt_nd_mas_gnb_nd_mas_gnb_acc, dt_nd_ps_gnb_nd_mas_gnb_acc, dt_d_d_dscrm, dt_nd_d_dscrm,
+ dt_d_nd_ps_gnb_dscrm, dt_nd_mas_gnb_nd_ps_gnb_dscrm, dt_nd_ps_gnb_nd_ps_gnb_dscrm, dt_d_nd_mas_gnb_dscrm,
+ dt_nd_mas_gnb_nd_mas_gnb_dscrm, dt_nd_ps_gnb_nd_mas_gnb_dscrm) = (
+    fnc.train_and_test_clf(d_x_train, d_y_train, d_x_test, d_y_test, nd_mas_gnb_x_train, nd_mas_gnb_y_train,
+                           nd_mas_gnb_x_test, nd_mas_gnb_y_test, nd_ps_gnb_x_train, nd_ps_gnb_y_train, nd_ps_gnb_x_test,
+                           nd_ps_gnb_y_test, "DT"))
 
 #%% K-nearest neighbors classifier
-# Train model on original discriminatory training set: Perform 5-fold CV grid search to find the optimal
-# hyperparameters
-param_grid = {
-    'n_neighbors': [15, 20, 30, 40, 50],
-    'weights': ['uniform', 'distance'],
-    'leaf_size': [5, 10, 15]
-}
-gridsearch = GridSearchCV(KNeighborsClassifier(n_jobs=-1), param_grid, n_jobs=-1, verbose=1)
-gridsearch.fit(d_x_train, d_y_train)
+(knn_d_d_acc, knn_nd_d_acc, knn_d_nd_ps_gnb_acc, knn_nd_mas_gnb_nd_ps_gnb_acc, knn_nd_ps_gnb_nd_ps_gnb_acc,
+ knn_d_nd_mas_gnb_acc, knn_nd_mas_gnb_nd_mas_gnb_acc, knn_nd_ps_gnb_nd_mas_gnb_acc, knn_d_d_dscrm, knn_nd_d_dscrm,
+ knn_d_nd_ps_gnb_dscrm, knn_nd_mas_gnb_nd_ps_gnb_dscrm, knn_nd_ps_gnb_nd_ps_gnb_dscrm, knn_d_nd_mas_gnb_dscrm,
+ knn_nd_mas_gnb_nd_mas_gnb_dscrm, knn_nd_ps_gnb_nd_mas_gnb_dscrm) = (
+    fnc.train_and_test_clf(d_x_train, d_y_train, d_x_test, d_y_test, nd_mas_gnb_x_train, nd_mas_gnb_y_train,
+                           nd_mas_gnb_x_test, nd_mas_gnb_y_test, nd_ps_gnb_x_train, nd_ps_gnb_y_train, nd_ps_gnb_x_test,
+                           nd_ps_gnb_y_test, "KNN"))
 
-# Results of grid search
-print(gridsearch.best_params_)
-print(gridsearch.best_score_)
-knn_d_clf = gridsearch.best_estimator_
-
-# Train model on massaged training set: Perform 5-fold CV grid search to find the optimal hyperparameters
-gridsearch.fit(nd_mas_gnb_x_train, nd_mas_gnb_y_train)
-
-# Results of grid search
-print(gridsearch.best_params_)
-print(gridsearch.best_score_)
-knn_nd_clf = gridsearch.best_estimator_
-
-# Compute accuracies
-knn_d_d_preds = knn_d_clf.predict(d_x_test)
-knn_d_d_acc = accuracy_score(d_y_test, knn_d_d_preds)
-knn_nd_d_preds = knn_nd_clf.predict(d_x_test)
-knn_nd_d_acc = accuracy_score(d_y_test, knn_nd_d_preds)
-knn_d_nd_preds = knn_d_clf.predict(nd_ps_gnb_x_test)
-knn_d_nd_acc = accuracy_score(nd_ps_gnb_y_test, knn_d_nd_preds)
-knn_nd_nd_preds = knn_nd_clf.predict(nd_ps_gnb_x_test)
-knn_nd_nd_acc = accuracy_score(nd_ps_gnb_y_test, knn_nd_nd_preds)
-
-# Compute statistical parity discriminations
-test_preds = pd.DataFrame(d_x_test.loc[:, 'sex'])
-test_preds.loc[:, 'prediction'] = knn_d_d_preds
-knn_d_d_dscrm = (test_preds.loc[(test_preds.sex == True) & (test_preds.prediction == True)].shape[0] /
-                 test_preds.loc[test_preds.sex == True].shape[0]) - (
-                        test_preds.loc[(test_preds.sex == False) & (test_preds.prediction == True)].shape[0] /
-                        test_preds.loc[test_preds.sex == False].shape[0])
-
-test_preds = pd.DataFrame(d_x_test.loc[:, 'sex'])
-test_preds.loc[:, 'prediction'] = knn_nd_d_preds
-knn_nd_d_dscrm = (test_preds.loc[(test_preds.sex == True) & (test_preds.prediction == True)].shape[0] /
-                  test_preds.loc[test_preds.sex == True].shape[0]) - (
-                         test_preds.loc[(test_preds.sex == False) & (test_preds.prediction == True)].shape[0] /
-                         test_preds.loc[test_preds.sex == False].shape[0])
-
-test_preds = pd.DataFrame(nd_ps_gnb_x_test.loc[:, 'sex'])
-test_preds.loc[:, 'prediction'] = knn_d_nd_preds
-knn_d_nd_dscrm = (test_preds.loc[(test_preds.sex == True) & (test_preds.prediction == True)].shape[0] /
-                  test_preds.loc[test_preds.sex == True].shape[0]) - (
-                         test_preds.loc[(test_preds.sex == False) & (test_preds.prediction == True)].shape[0] /
-                         test_preds.loc[test_preds.sex == False].shape[0])
-
-test_preds = pd.DataFrame(nd_ps_gnb_x_test.loc[:, 'sex'])
-test_preds.loc[:, 'prediction'] = knn_nd_nd_preds
-knn_nd_nd_dscrm = (test_preds.loc[(test_preds.sex == True) & (test_preds.prediction == True)].shape[0] /
-                   test_preds.loc[test_preds.sex == True].shape[0]) - (
-                          test_preds.loc[(test_preds.sex == False) & (test_preds.prediction == True)].shape[0] /
-                          test_preds.loc[test_preds.sex == False].shape[0])
-
-# Print accuracies & discriminations
-print("Accuracy of the base KNN model on the test set: " + str(knn_d_d_acc))
-print("Discrimination of the base KNN model on the test set: " + str(knn_d_d_dscrm))
-print("Accuracy of the non-discriminatory KNN model on the test set: " + str(knn_nd_d_acc))
-print("Discrimination of the non-discriminatory KNN model on the test set: " + str(knn_nd_d_dscrm))
-print("Accuracy of the base KNN model on the simulated non-discriminatory test set: " + str(knn_d_nd_acc))
-print("Discrimination of the base model on the simulated non-discriminatory test set: " + str(knn_d_nd_dscrm))
-print("Accuracy of the non-discriminatory KNN model on the simulated non-discriminatory test set: " +
-      str(knn_nd_nd_acc))
-print("Discrimination of the non-discriminatory KNN model on the simulated non-discriminatory test set: " +
-      str(knn_nd_nd_dscrm))
+# TODO: remove sex from dataset after training model (in train and test function)
 
 #%% Visualizing results
 # Set title and label sizes
@@ -496,16 +218,17 @@ plt.show()
 #       Discriminatory model vs massaged (GNB ranker) ND model
 fig, axes = plt.subplots(1, 2, figsize=(12, 6))
 #           Subplot accuracies
-acc_d_nd_ps_gnb = [dt_d_nd_acc, knn_d_nd_acc, gnb_d_nd_ps_gnb_acc]
-acc_nd_mas_gnb_nd_ps_gnb = [dt_nd_nd_acc, knn_nd_nd_acc, gnb_nd_mas_gnb_nd_ps_gnb_acc]
+acc_d_nd_ps_gnb = [dt_d_nd_ps_gnb_acc, knn_d_nd_ps_gnb_acc, gnb_d_nd_ps_gnb_acc]
+acc_nd_mas_gnb_nd_ps_gnb = [dt_nd_mas_gnb_nd_ps_gnb_acc, knn_nd_mas_gnb_nd_ps_gnb_acc, gnb_nd_mas_gnb_nd_ps_gnb_acc]
 index = ['Decision tree', 'K-nearest neighbors', 'Gaussian Naive Bayes']
 (pd.DataFrame({'Discriminatory model': acc_d_nd_ps_gnb,
                'Non-discriminatory model': acc_nd_mas_gnb_nd_ps_gnb}, index)
  .plot.bar(yticks=[x / 10.0 for x in range(0, 11)], ylim=(0, 1), xlabel='Classification algorithm',
            ylabel='Accuracy (%)', rot=0, ax=axes[0]))
 #           Subplot discriminations
-dscrm_d_nd_ps_gnb = [dt_d_nd_dscrm, knn_d_nd_dscrm, gnb_d_nd_ps_gnb_dscrm]
-dscrm_nd_mas_gnb_nd_ps_gnb = [dt_nd_nd_dscrm, knn_nd_nd_dscrm, gnb_nd_mas_gnb_nd_ps_gnb_dscrm]
+dscrm_d_nd_ps_gnb = [dt_d_nd_ps_gnb_dscrm, knn_d_nd_ps_gnb_dscrm, gnb_d_nd_ps_gnb_dscrm]
+dscrm_nd_mas_gnb_nd_ps_gnb = [dt_nd_mas_gnb_nd_ps_gnb_dscrm, knn_nd_mas_gnb_nd_ps_gnb_dscrm,
+                              gnb_nd_mas_gnb_nd_ps_gnb_dscrm]
 index = ['Decision tree', 'K-nearest neighbors', 'Gaussian Naive Bayes']
 (pd.DataFrame({'Discriminatory model': dscrm_d_nd_ps_gnb,
                'Non-discriminatory model': dscrm_nd_mas_gnb_nd_ps_gnb}, index)
@@ -521,16 +244,16 @@ plt.show()
 #       Discriminatory model vs PS (GNB ranker) ND model
 fig, axes = plt.subplots(1, 2, figsize=(12, 6))
 #           Subplot accuracies
-acc_d_nd_ps_gnb = [dt_d_nd_acc, knn_d_nd_acc, gnb_d_nd_ps_gnb_acc]
-acc_nd_ps_gnb_nd_ps_gnb = [dt_nd_nd_acc, knn_nd_nd_acc, gnb_nd_ps_gnb_nd_ps_gnb_acc]
+acc_d_nd_ps_gnb = [dt_d_nd_ps_gnb_acc, knn_d_nd_ps_gnb_acc, gnb_d_nd_ps_gnb_acc]
+acc_nd_ps_gnb_nd_ps_gnb = [dt_nd_ps_gnb_nd_ps_gnb_acc, knn_nd_ps_gnb_nd_ps_gnb_acc, gnb_nd_ps_gnb_nd_ps_gnb_acc]
 index = ['Decision tree', 'K-nearest neighbors', 'Gaussian Naive Bayes']
 (pd.DataFrame({'Discriminatory model': acc_d_nd_ps_gnb,
                'Non-discriminatory model': acc_nd_ps_gnb_nd_ps_gnb}, index)
  .plot.bar(yticks=[x / 10.0 for x in range(0, 11)], ylim=(0, 1), xlabel='Classification algorithm',
            ylabel='Accuracy (%)', rot=0, ax=axes[0]))
 #           Subplot discriminations
-dscrm_d_nd_ps_gnb = [dt_d_nd_dscrm, knn_d_nd_dscrm, gnb_d_nd_ps_gnb_dscrm]
-dscrm_nd_ps_gnb_nd_ps_gnb = [dt_nd_nd_dscrm, knn_nd_nd_dscrm, gnb_nd_ps_gnb_nd_ps_gnb_dscrm]
+dscrm_d_nd_ps_gnb = [dt_d_nd_ps_gnb_dscrm, knn_d_nd_ps_gnb_dscrm, gnb_d_nd_ps_gnb_dscrm]
+dscrm_nd_ps_gnb_nd_ps_gnb = [dt_nd_ps_gnb_nd_ps_gnb_dscrm, knn_nd_ps_gnb_nd_ps_gnb_dscrm, gnb_nd_ps_gnb_nd_ps_gnb_dscrm]
 index = ['Decision tree', 'K-nearest neighbors', 'Gaussian Naive Bayes']
 (pd.DataFrame({'Discriminatory model': dscrm_d_nd_ps_gnb,
                'Non-discriminatory model': dscrm_nd_ps_gnb_nd_ps_gnb}, index)
@@ -547,16 +270,17 @@ plt.show()
 #       Discriminatory model vs massaged (GNB ranker) ND model
 fig, axes = plt.subplots(1, 2, figsize=(12, 6))
 #           Subplot accuracies
-acc_d_nd_mas_gnb = [dt_d_nd_acc, knn_d_nd_acc, gnb_d_nd_mas_gnb_acc]
-acc_nd_mas_gnb_nd_mas_gnb = [dt_nd_nd_acc, knn_nd_nd_acc, gnb_nd_mas_gnb_nd_mas_gnb_acc]
+acc_d_nd_mas_gnb = [dt_d_nd_mas_gnb_acc, knn_d_nd_mas_gnb_acc, gnb_d_nd_mas_gnb_acc]
+acc_nd_mas_gnb_nd_mas_gnb = [dt_nd_mas_gnb_nd_mas_gnb_acc, knn_nd_mas_gnb_nd_mas_gnb_acc, gnb_nd_mas_gnb_nd_mas_gnb_acc]
 index = ['Decision tree', 'K-nearest neighbors', 'Gaussian Naive Bayes']
 (pd.DataFrame({'Discriminatory model': acc_d_nd_mas_gnb,
                'Non-discriminatory model': acc_nd_mas_gnb_nd_mas_gnb}, index)
  .plot.bar(yticks=[x / 10.0 for x in range(0, 11)], ylim=(0, 1), xlabel='Classification algorithm',
            ylabel='Accuracy (%)', rot=0, ax=axes[0]))
 #           Subplot discriminations
-dscrm_d_nd_mas_gnb = [dt_d_nd_dscrm, knn_d_nd_dscrm, gnb_d_nd_mas_gnb_dscrm]
-dscrm_nd_mas_gnb_nd_mas_gnb = [dt_nd_nd_dscrm, knn_nd_nd_dscrm, gnb_nd_mas_gnb_nd_mas_gnb_dscrm]
+dscrm_d_nd_mas_gnb = [dt_d_nd_mas_gnb_dscrm, knn_d_nd_mas_gnb_dscrm, gnb_d_nd_mas_gnb_dscrm]
+dscrm_nd_mas_gnb_nd_mas_gnb = [dt_nd_mas_gnb_nd_mas_gnb_dscrm, knn_nd_mas_gnb_nd_mas_gnb_dscrm,
+                               gnb_nd_mas_gnb_nd_mas_gnb_dscrm]
 index = ['Decision tree', 'K-nearest neighbors', 'Gaussian Naive Bayes']
 (pd.DataFrame({'Discriminatory model': dscrm_d_nd_mas_gnb,
                'Non-discriminatory model': dscrm_nd_mas_gnb_nd_mas_gnb}, index)
@@ -572,16 +296,17 @@ plt.show()
 #       Discriminatory model vs PS (GNB ranker) ND model
 fig, axes = plt.subplots(1, 2, figsize=(12, 6))
 #           Subplot accuracies
-acc_d_nd_mas_gnb = [dt_d_nd_acc, knn_d_nd_acc, gnb_d_nd_mas_gnb_acc]
-acc_nd_ps_gnb_nd_mas_gnb = [dt_nd_nd_acc, knn_nd_nd_acc, gnb_nd_ps_gnb_nd_mas_gnb_acc]
+acc_d_nd_mas_gnb = [dt_d_nd_mas_gnb_acc, knn_d_nd_mas_gnb_acc, gnb_d_nd_mas_gnb_acc]
+acc_nd_ps_gnb_nd_mas_gnb = [dt_nd_ps_gnb_nd_mas_gnb_acc, knn_nd_ps_gnb_nd_mas_gnb_acc, gnb_nd_ps_gnb_nd_mas_gnb_acc]
 index = ['Decision tree', 'K-nearest neighbors', 'Gaussian Naive Bayes']
 (pd.DataFrame({'Discriminatory model': acc_d_nd_mas_gnb,
                'Non-discriminatory model': acc_nd_ps_gnb_nd_mas_gnb}, index)
  .plot.bar(yticks=[x / 10.0 for x in range(0, 11)], ylim=(0, 1), xlabel='Classification algorithm',
            ylabel='Accuracy (%)', rot=0, ax=axes[0]))
 #           Subplot discriminations
-dscrm_d_nd_mas_gnb = [dt_d_nd_dscrm, knn_d_nd_dscrm, gnb_d_nd_mas_gnb_dscrm]
-dscrm_nd_ps_gnb_nd_mas_gnb = [dt_nd_nd_dscrm, knn_nd_nd_dscrm, gnb_nd_ps_gnb_nd_mas_gnb_dscrm]
+dscrm_d_nd_mas_gnb = [dt_d_nd_mas_gnb_dscrm, knn_d_nd_mas_gnb_dscrm, gnb_d_nd_mas_gnb_dscrm]
+dscrm_nd_ps_gnb_nd_mas_gnb = [dt_nd_ps_gnb_nd_mas_gnb_dscrm, knn_nd_ps_gnb_nd_mas_gnb_dscrm,
+                              gnb_nd_ps_gnb_nd_mas_gnb_dscrm]
 index = ['Decision tree', 'K-nearest neighbors', 'Gaussian Naive Bayes']
 (pd.DataFrame({'Discriminatory model': dscrm_d_nd_mas_gnb,
                'Non-discriminatory model': dscrm_nd_ps_gnb_nd_mas_gnb}, index)
